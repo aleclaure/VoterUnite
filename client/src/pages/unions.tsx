@@ -11,7 +11,16 @@ export default function Unions() {
   const [category, setCategory] = useState("");
 
   const { data: unions = [], isLoading } = useQuery({
-    queryKey: ["/api/unions", { category, search }],
+    queryKey: ["/api/unions", category, search],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (category) params.append("category", category);
+      if (search) params.append("search", search);
+      const url = `/api/unions${params.toString() ? `?${params.toString()}` : ""}`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch unions");
+      return res.json();
+    },
   });
 
   const categories = [

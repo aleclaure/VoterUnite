@@ -35,6 +35,7 @@ The platform uses a monorepo structure with shared components and distinct web a
     *   Complete set of screens mirroring web functionality: Home, Unions, Dashboard, Education, Events, Profile, and Auth.
     *   Utilizes reusable components for consistency and React Navigation for routing.
     *   Configured for Expo SDK 50+ compatibility.
+    *   **Discussion System**: Union detail screen with Overview/Discussion tabs, horizontal channel tabs, post list with voting, post detail screen with nested comments, and centralized state management for real-time updates.
 5.  **Database Schema**: A robust PostgreSQL schema defines relationships for all core entities and the discussion system, including `union_channels`, `discussion_posts`, `post_comments`, `post_votes`, and `comment_votes`.
 6.  **Authentication**: Supabase Authentication is fully implemented across web and mobile for user sign-up, sign-in, sign-out, session persistence, and secure JWT-based backend validation.
 7.  **Multi-Platform Development**: Emphasizes feature parity between web (`client/`) and mobile (`mobile/`) apps, with shared schema (`shared/`) and backend services (`server/`) communicating with a unified Supabase backend. UI components are kept entirely separate between web (React + Tailwind) and mobile (React Native + Paper).
