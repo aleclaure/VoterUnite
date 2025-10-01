@@ -70,7 +70,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const member = await storage.joinUnion(memberData);
       res.json(member);
     } catch (error: any) {
-      res.status(400).json({ message: error.message });
+      console.error("Join union error:", error);
+      res.status(400).json({ message: error.message, details: error.errors || error });
     }
   });
 

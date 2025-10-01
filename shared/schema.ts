@@ -37,7 +37,7 @@ export const unions = pgTable("unions", {
 export const unionMembers = pgTable("union_members", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   unionId: varchar("union_id").references(() => unions.id).notNull(),
-  userId: varchar("user_id").references(() => users.id).notNull(),
+  userId: varchar("user_id").notNull(), // UUID from Supabase auth.users (no FK to local users table)
   role: text("role").default("member"), // member, organizer, admin
   joinedAt: timestamp("joined_at").defaultNow().notNull(),
 });
