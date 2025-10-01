@@ -664,8 +664,5 @@ export class DbStorage implements IStorage {
   }
 }
 
-// NOTE: Currently using MemStorage. To switch to PostgreSQL:
-// 1. Ensure DATABASE_URL is set correctly in Replit Secrets
-// 2. Run `npm run db:push` to create tables
-// 3. Switch to: export const storage = new DbStorage();
-export const storage = new MemStorage();
+// Using DbStorage with Supabase PostgreSQL
+export const storage = new DbStorage();
