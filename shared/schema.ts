@@ -148,6 +148,58 @@ export const userBadges = pgTable("user_badges", {
   earnedAt: timestamp("earned_at").defaultNow().notNull(),
 });
 
+// Discussion System Tables
+
+// Union Channels (Discord-like tabs)
+export const unionChannels = pgTable("union_channels", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  unionId: varchar("union_id").references(() => unions.id).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  channelType: text("channel_type").default("text"), // text, voice, video
+  createdBy: varchar("created_by").notNull(), // UUID from auth.users
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Discussion Posts (Reddit-style posts)
+export const discussionPosts = pgTable("discussion_posts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  unionId: varchar("union_id").references(() => unions.id).notNull(),
+  channelId: varchar("channel_id").references(() => unionChannels.id).notNull(),
+  authorId: varchar("author_id").notNull(), // UUID from auth.users
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  upvotes: integer("upvotes").default(0),
+  downvotes: integer("downvotes").default(0),
+  commentCount: integer("comment_count").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Post Comments (Nested threading)
+export const postComments = pgTable("post_comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postId: varchar("post_id").references(() => discussionPosts.id).notNull(),
+  parentCommentId: varchar("parent_comment_id").references(() => postComments.id),
+  authorId: varchar("author_id").notNull(), // UUID from auth.users
+  content: text("content").notNull(),
+  upvotes: integer("upvotes").default(0),
+  downvotes: integer("downvotes").default(0),
+  depth: integer("depth").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Post Votes (Track upvotes/downvotes)
+export const postVotes = pgTable("post_votes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(), // UUID from auth.users
+  postId: varchar("post_id").references(() => discussionPosts.id),
+  commentId: varchar("comment_id").references(() => postComments.id),
+  voteType: text("vote_type").notNull(), // upvote, downvote
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Insert Schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertUnionSchema = createInsertSchema(unions).omit({ id: true, createdAt: true, memberCount: true, pledgedCount: true, districtCount: true, powerIndex: true });
@@ -161,6 +213,10 @@ export const insertEventAttendeeSchema = createInsertSchema(eventAttendees).omit
 export const insertBallotSchema = createInsertSchema(ballots).omit({ id: true, createdAt: true });
 export const insertVoteSchema = createInsertSchema(votes).omit({ id: true, votedAt: true });
 export const insertUserBadgeSchema = createInsertSchema(userBadges).omit({ id: true, earnedAt: true });
+export const insertUnionChannelSchema = createInsertSchema(unionChannels).omit({ id: true, createdAt: true });
+export const insertDiscussionPostSchema = createInsertSchema(discussionPosts).omit({ id: true, createdAt: true, updatedAt: true, upvotes: true, downvotes: true, commentCount: true });
+export const insertPostCommentSchema = createInsertSchema(postComments).omit({ id: true, createdAt: true, updatedAt: true, upvotes: true, downvotes: true, depth: true });
+export const insertPostVoteSchema = createInsertSchema(postVotes).omit({ id: true, createdAt: true });
 
 // Types
 export type User = typeof users.$inferSelect;
@@ -187,3 +243,11 @@ export type Vote = typeof votes.$inferSelect;
 export type InsertVote = z.infer<typeof insertVoteSchema>;
 export type UserBadge = typeof userBadges.$inferSelect;
 export type InsertUserBadge = z.infer<typeof insertUserBadgeSchema>;
+export type UnionChannel = typeof unionChannels.$inferSelect;
+export type InsertUnionChannel = z.infer<typeof insertUnionChannelSchema>;
+export type DiscussionPost = typeof discussionPosts.$inferSelect;
+export type InsertDiscussionPost = z.infer<typeof insertDiscussionPostSchema>;
+export type PostComment = typeof postComments.$inferSelect;
+export type InsertPostComment = z.infer<typeof insertPostCommentSchema>;
+export type PostVote = typeof postVotes.$inferSelect;
+export type InsertPostVote = z.infer<typeof insertPostVoteSchema>;
