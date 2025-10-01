@@ -121,13 +121,18 @@ The platform uses a monorepo structure with shared components and distinct web a
 2.  **Backend API**: Provides full CRUD operations for all entities via Express.js, leveraging Drizzle ORM for PostgreSQL interaction. It includes authentication middleware for protected routes and user ID injection.
 3.  **Web Frontend**:
     *   Comprehensive UI including home, union listings/details, dashboard with metrics, education hub, events calendar, user profiles, and an authentication flow.
-    *   **Discussion System**: Integrated within union detail pages, featuring Discord-like channels, Reddit-style posts with voting and nested comments, and real-time updates. Actions are authentication-gated.
+    *   **Discussion System**: Integrated within union detail pages, featuring Discord-like channels (text/voice/video), Reddit-style posts with voting and nested comments, and real-time updates. Actions are authentication-gated.
+    *   **Channel Types**: Supports three channel types with visual indicators:
+        - Text Channels: Hash (#) icon for text-based discussions
+        - Voice Rooms: Mic icon for audio communication (infrastructure ready)
+        - Video Rooms: Video camera icon for video conferencing (infrastructure ready)
 4.  **Mobile App**:
     *   Complete set of screens mirroring web functionality: Home, Unions, Dashboard, Education, Events, Profile, and Auth.
     *   Utilizes reusable components for consistency and React Navigation for routing.
     *   Configured for Expo SDK 50+ compatibility.
-    *   **Discussion System**: Union detail screen with Overview/Discussion tabs, horizontal channel tabs, post list with voting, post detail screen with nested comments, and centralized state management for real-time updates.
-5.  **Database Schema**: A robust PostgreSQL schema defines relationships for all core entities and the discussion system, including `union_channels`, `discussion_posts`, `post_comments`, `post_votes`, and `comment_votes`.
+    *   **Discussion System**: Union detail screen with Overview/Discussion tabs, horizontal channel tabs with type-specific icons (chatbox/mic/videocam), post list with voting, post detail screen with nested comments, and centralized state management for real-time updates.
+    *   **Channel Types**: Full feature parity with web - supports text/voice/video channel creation with visual type indicators.
+5.  **Database Schema**: A robust PostgreSQL schema defines relationships for all core entities and the discussion system, including `union_channels` (with `channelType` field for text/voice/video), `discussion_posts`, `post_comments`, `post_votes`, and `comment_votes`. The `channelType` column in `union_channels` stores one of three values: 'text', 'voice', or 'video', enabling different communication modes within unions.
 6.  **Authentication**: Supabase Authentication is fully implemented across web and mobile for user sign-up, sign-in, sign-out, session persistence, and secure JWT-based backend validation.
 7.  **Multi-Platform Development**: Emphasizes feature parity between web (`client/`) and mobile (`mobile/`) apps, with shared schema (`shared/`) and backend services (`server/`) communicating with a unified Supabase backend. UI components are kept entirely separate between web (React + Tailwind) and mobile (React Native + Paper).
 
