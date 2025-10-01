@@ -126,6 +126,28 @@ The mobile app is located in the `mobile/` directory and includes:
 - Use shadcn/ui components wherever possible
 - Maintain consistency between web and mobile experiences
 
+### Multi-Platform Development Guidelines
+**Build feature parity between web and mobile apps.** Whenever you add or modify a feature, implement it in both:
+
+**Web App** (`client/src/`):
+- Files: `client/src/pages/`, `client/src/components/`
+- Tech: React, Tailwind CSS, shadcn/ui, Wouter routing
+- Backend: `server/routes.ts`, `server/storage.ts`
+
+**Mobile App** (`mobile/src/`):
+- Files: `mobile/src/screens/`, `mobile/src/components/`
+- Tech: React Native, Expo, React Native Paper, React Navigation
+- Backend: Same Supabase database (shared with web)
+
+**Standard Feature Implementation Flow:**
+1. Update shared schema in `shared/schema.ts` (if database changes needed)
+2. Update backend routes in `server/routes.ts` and storage interface in `server/storage.ts`
+3. Build web UI in `client/src/pages/` using React + Tailwind
+4. Build mobile UI in `mobile/src/screens/` using React Native + Expo
+5. Ensure both apps connect to the same Supabase backend for data sync
+
+**Key Principle:** Both apps share the same Supabase PostgreSQL database, so data syncs automatically. Code is maintained separately but features should match across platforms for consistent user experience.
+
 ## Current Status
 
 ### Supabase Integration
