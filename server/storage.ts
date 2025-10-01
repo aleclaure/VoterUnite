@@ -664,5 +664,6 @@ export class DbStorage implements IStorage {
   }
 }
 
-// Using DbStorage with Supabase PostgreSQL
-export const storage = new DbStorage();
+// Using MemStorage (in-memory) for now
+// Switch to DbStorage when database connection is stable
+export const storage = new MemStorage();
