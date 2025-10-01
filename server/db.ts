@@ -15,9 +15,9 @@ if (process.env.SUPABASE_URL && process.env.SUPABASE_DB_PASSWORD) {
     const supabaseRef = urlMatch[1];
     const password = encodeURIComponent(process.env.SUPABASE_DB_PASSWORD);
     
-    // Supabase pooler connection (IPv4 compatible - required for Replit)
+    // Supabase Transaction pooler connection (ideal for serverless/Replit)
     // Username format: postgres.{project-ref} (NOT just "postgres")
-    const connectionString = `postgresql://postgres.${supabaseRef}:${password}@aws-0-us-east-1.pooler.supabase.com:6543/postgres`;
+    const connectionString = `postgresql://postgres.${supabaseRef}:${password}@aws-1-us-east-2.pooler.supabase.com:6543/postgres`;
     
     console.log('🔌 Connecting to Supabase PostgreSQL (pooler)...');
     console.log('📍 Username:', `postgres.${supabaseRef}`);
