@@ -403,4 +403,269 @@ export class MemStorage implements IStorage {
   }
 }
 
+import { db } from "./db";
+import { eq, and, or, like, desc, sql } from "drizzle-orm";
+import * as schema from "@shared/schema";
+
+export class DbStorage implements IStorage {
+  // Users
+  async getUser(id: string): Promise<User | undefined> {
+    const result = await db.select().from(schema.users).where(eq(schema.users.id, id));
+    return result[0];
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const result = await db.select().from(schema.users).where(eq(schema.users.username, username));
+    return result[0];
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const result = await db.select().from(schema.users).where(eq(schema.users.email, email));
+    return result[0];
+  }
+
+  async createUser(user: InsertUser): Promise<User> {
+    const result = await db.insert(schema.users).values(user).returning();
+    return result[0];
+  }
+
+  async updateUser(id: string, updates: Partial<InsertUser>): Promise<User> {
+    const result = await db.update(schema.users).set(updates).where(eq(schema.users.id, id)).returning();
+    if (!result[0]) throw new Error("User not found");
+    return result[0];
+  }
+
+  // Unions
+  async getUnion(id: string): Promise<Union | undefined> {
+    const result = await db.select().from(schema.unions).where(eq(schema.unions.id, id));
+    return result[0];
+  }
+
+  async getUnions(filters?: { category?: string; scope?: string; search?: string }): Promise<Union[]> {
+    let query = db.select().from(schema.unions);
+    
+    const conditions = [];
+    if (filters?.category) conditions.push(eq(schema.unions.category, filters.category));
+    if (filters?.scope) conditions.push(eq(schema.unions.scope, filters.scope));
+    if (filters?.search) {
+      conditions.push(
+        or(
+          like(schema.unions.name, `%${filters.search}%`),
+          like(schema.unions.description, `%${filters.search}%`)
+        )
+      );
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    
+    return await query;
+  }
+
+  async createUnion(union: InsertUnion): Promise<Union> {
+    const result = await db.insert(schema.unions).values(union).returning();
+    return result[0];
+  }
+
+  async updateUnion(id: string, updates: Partial<Union>): Promise<Union> {
+    const result = await db.update(schema.unions).set(updates).where(eq(schema.unions.id, id)).returning();
+    if (!result[0]) throw new Error("Union not found");
+    return result[0];
+  }
+
+  // Union Members
+  async getUnionMembers(unionId: string): Promise<UnionMember[]> {
+    return await db.select().from(schema.unionMembers).where(eq(schema.unionMembers.unionId, unionId));
+  }
+
+  async getUserUnions(userId: string): Promise<Union[]> {
+    const members = await db.select().from(schema.unionMembers).where(eq(schema.unionMembers.userId, userId));
+    const unionIds = members.map(m => m.unionId);
+    if (unionIds.length === 0) return [];
+    return await db.select().from(schema.unions).where(sql`${schema.unions.id} = ANY(${unionIds})`);
+  }
+
+  async joinUnion(member: InsertUnionMember): Promise<UnionMember> {
+    const result = await db.insert(schema.unionMembers).values(member).returning();
+    await db.update(schema.unions)
+      .set({ memberCount: sql`${schema.unions.memberCount} + 1` })
+      .where(eq(schema.unions.id, member.unionId));
+    return result[0];
+  }
+
+  async leaveUnion(unionId: string, userId: string): Promise<void> {
+    await db.delete(schema.unionMembers)
+      .where(and(eq(schema.unionMembers.unionId, unionId), eq(schema.unionMembers.userId, userId)));
+    await db.update(schema.unions)
+      .set({ memberCount: sql`GREATEST(${schema.unions.memberCount} - 1, 0)` })
+      .where(eq(schema.unions.id, unionId));
+  }
+
+  // Union Demands
+  async getUnionDemands(unionId: string): Promise<UnionDemand[]> {
+    return await db.select().from(schema.unionDemands)
+      .where(eq(schema.unionDemands.unionId, unionId))
+      .orderBy(desc(schema.unionDemands.priority));
+  }
+
+  async createUnionDemand(demand: InsertUnionDemand): Promise<UnionDemand> {
+    const result = await db.insert(schema.unionDemands).values(demand).returning();
+    return result[0];
+  }
+
+  async updateUnionDemand(id: string, updates: Partial<UnionDemand>): Promise<UnionDemand> {
+    const result = await db.update(schema.unionDemands).set(updates).where(eq(schema.unionDemands.id, id)).returning();
+    if (!result[0]) throw new Error("Demand not found");
+    return result[0];
+  }
+
+  // Pledges
+  async getUserPledges(userId: string): Promise<Pledge[]> {
+    return await db.select().from(schema.pledges).where(eq(schema.pledges.userId, userId));
+  }
+
+  async getUnionPledges(unionId: string): Promise<Pledge[]> {
+    return await db.select().from(schema.pledges).where(eq(schema.pledges.unionId, unionId));
+  }
+
+  async createPledge(pledge: InsertPledge): Promise<Pledge> {
+    const result = await db.insert(schema.pledges).values(pledge).returning();
+    await db.update(schema.unions)
+      .set({ pledgedCount: sql`${schema.unions.pledgedCount} + 1` })
+      .where(eq(schema.unions.id, pledge.unionId));
+    return result[0];
+  }
+
+  async withdrawPledge(id: string): Promise<Pledge> {
+    const result = await db.update(schema.pledges)
+      .set({ status: "withdrawn" })
+      .where(eq(schema.pledges.id, id))
+      .returning();
+    if (!result[0]) throw new Error("Pledge not found");
+    await db.update(schema.unions)
+      .set({ pledgedCount: sql`GREATEST(${schema.unions.pledgedCount} - 1, 0)` })
+      .where(eq(schema.unions.id, result[0].unionId));
+    return result[0];
+  }
+
+  // Candidates
+  async getCandidate(id: string): Promise<Candidate | undefined> {
+    const result = await db.select().from(schema.candidates).where(eq(schema.candidates.id, id));
+    return result[0];
+  }
+
+  async getCandidates(filters?: { district?: string; state?: string }): Promise<Candidate[]> {
+    let query = db.select().from(schema.candidates);
+    const conditions = [];
+    if (filters?.district) conditions.push(eq(schema.candidates.district, filters.district));
+    if (filters?.state) conditions.push(eq(schema.candidates.state, filters.state));
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    return await query;
+  }
+
+  async createCandidate(candidate: InsertCandidate): Promise<Candidate> {
+    const result = await db.insert(schema.candidates).values(candidate).returning();
+    return result[0];
+  }
+
+  // Candidate Commitments
+  async getCandidateCommitments(candidateId: string): Promise<CandidateCommitment[]> {
+    return await db.select().from(schema.candidateCommitments)
+      .where(eq(schema.candidateCommitments.candidateId, candidateId));
+  }
+
+  async createCandidateCommitment(commitment: InsertCandidateCommitment): Promise<CandidateCommitment> {
+    const result = await db.insert(schema.candidateCommitments).values(commitment).returning();
+    return result[0];
+  }
+
+  async updateCommitmentStatus(id: string, status: string, notes?: string): Promise<CandidateCommitment> {
+    const result = await db.update(schema.candidateCommitments)
+      .set({ status, verificationNotes: notes })
+      .where(eq(schema.candidateCommitments.id, id))
+      .returning();
+    if (!result[0]) throw new Error("Commitment not found");
+    return result[0];
+  }
+
+  // Events
+  async getEvent(id: string): Promise<Event | undefined> {
+    const result = await db.select().from(schema.events).where(eq(schema.events.id, id));
+    return result[0];
+  }
+
+  async getEvents(filters?: { unionId?: string; eventType?: string }): Promise<Event[]> {
+    let query = db.select().from(schema.events);
+    const conditions = [];
+    if (filters?.unionId) conditions.push(eq(schema.events.unionId, filters.unionId));
+    if (filters?.eventType) conditions.push(eq(schema.events.eventType, filters.eventType));
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions)) as any;
+    }
+    return await query.orderBy(schema.events.date);
+  }
+
+  async createEvent(event: InsertEvent): Promise<Event> {
+    const result = await db.insert(schema.events).values(event).returning();
+    return result[0];
+  }
+
+  // Event Attendees
+  async rsvpEvent(attendee: InsertEventAttendee): Promise<EventAttendee> {
+    const result = await db.insert(schema.eventAttendees).values(attendee).returning();
+    await db.update(schema.events)
+      .set({ attendeeCount: sql`${schema.events.attendeeCount} + 1` })
+      .where(eq(schema.events.id, attendee.eventId));
+    return result[0];
+  }
+
+  async getEventAttendees(eventId: string): Promise<EventAttendee[]> {
+    return await db.select().from(schema.eventAttendees).where(eq(schema.eventAttendees.eventId, eventId));
+  }
+
+  // Ballots
+  async getActiveBallots(unionId: string): Promise<Ballot[]> {
+    return await db.select().from(schema.ballots)
+      .where(and(
+        eq(schema.ballots.unionId, unionId),
+        eq(schema.ballots.status, "active"),
+        sql`${schema.ballots.endDate} > NOW()`
+      ));
+  }
+
+  async createBallot(ballot: InsertBallot): Promise<Ballot> {
+    const result = await db.insert(schema.ballots).values(ballot).returning();
+    return result[0];
+  }
+
+  // Votes
+  async castVote(vote: InsertVote): Promise<Vote> {
+    const result = await db.insert(schema.votes).values(vote).returning();
+    return result[0];
+  }
+
+  async getUserVote(ballotId: string, userId: string): Promise<Vote | undefined> {
+    const result = await db.select().from(schema.votes)
+      .where(and(eq(schema.votes.ballotId, ballotId), eq(schema.votes.userId, userId)));
+    return result[0];
+  }
+
+  // Badges
+  async getUserBadges(userId: string): Promise<UserBadge[]> {
+    return await db.select().from(schema.userBadges).where(eq(schema.userBadges.userId, userId));
+  }
+
+  async awardBadge(badge: InsertUserBadge): Promise<UserBadge> {
+    const result = await db.insert(schema.userBadges).values(badge).returning();
+    return result[0];
+  }
+}
+
+// NOTE: Currently using MemStorage. To switch to PostgreSQL:
+// 1. Ensure DATABASE_URL is set correctly in Replit Secrets
+// 2. Run `npm run db:push` to create tables
+// 3. Switch to: export const storage = new DbStorage();
 export const storage = new MemStorage();

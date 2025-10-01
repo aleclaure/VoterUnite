@@ -22,10 +22,10 @@ export default function Footer() {
           <div>
             <h4 className="font-bold mb-4">Platform</h4>
             <ul className="space-y-2 text-card/70">
-              <li><Link href="/unions"><a className="hover:text-card transition-colors">Browse Unions</a></Link></li>
-              <li><Link href="/dashboard"><a className="hover:text-card transition-colors">Transparency Dashboard</a></Link></li>
-              <li><Link href="/education"><a className="hover:text-card transition-colors">Education Hub</a></Link></li>
-              <li><Link href="/events"><a className="hover:text-card transition-colors">Events</a></Link></li>
+              <li><Link href="/unions" className="hover:text-card transition-colors">Browse Unions</Link></li>
+              <li><Link href="/dashboard" className="hover:text-card transition-colors">Transparency Dashboard</Link></li>
+              <li><Link href="/education" className="hover:text-card transition-colors">Education Hub</Link></li>
+              <li><Link href="/events" className="hover:text-card transition-colors">Events</Link></li>
             </ul>
           </div>
           

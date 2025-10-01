@@ -27,26 +27,22 @@ export default function Home() {
                 Join issue-based voting unions to collectively bargain with candidates, track commitments, and build real political leverage in your district.
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
-                <Button asChild size="lg" className="text-lg">
-                  <Link href="/unions">
-                    <a>
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                      Create a Union
-                    </a>
-                  </Link>
-                </Button>
-                <Button asChild variant="outline" size="lg" className="text-lg">
-                  <Link href="/unions">
-                    <a>
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                      Browse Unions
-                    </a>
-                  </Link>
-                </Button>
+                <Link href="/unions">
+                  <Button size="lg" className="text-lg">
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Create a Union
+                  </Button>
+                </Link>
+                <Link href="/unions">
+                  <Button variant="outline" size="lg" className="text-lg">
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    Browse Unions
+                  </Button>
+                </Link>
               </div>
               <div className="mt-12 grid grid-cols-3 gap-6">
                 <div>
