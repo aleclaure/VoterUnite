@@ -71,6 +71,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(member);
     } catch (error: any) {
       console.error("Join union error:", error);
+      // Check if it's a duplicate key error (user already joined)
+      if (error.code === '23505' && error.constraint_name === 'union_members_union_id_user_id_key') {
+        return res.status(400).json({ message: "You've already joined this union" });
+      }
       res.status(400).json({ message: error.message, details: error.errors || error });
     }
   });
@@ -78,6 +82,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/users/:id/unions", async (req, res) => {
     const unions = await storage.getUserUnions(req.params.id);
     res.json(unions);
+  });
+
+  app.get("/api/unions/:unionId/members/:userId", async (req, res) => {
+    try {
+      const membership = await storage.getUnionMembership(req.params.unionId, req.params.userId);
+      res.json(membership || null);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
   });
 
   // Union Demands

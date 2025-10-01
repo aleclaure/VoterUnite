@@ -35,6 +35,7 @@ export interface IStorage {
   // Union Members
   getUnionMembers(unionId: string): Promise<UnionMember[]>;
   getUserUnions(userId: string): Promise<Union[]>;
+  getUnionMembership(unionId: string, userId: string): Promise<UnionMember | undefined>;
   joinUnion(member: InsertUnionMember): Promise<UnionMember>;
   leaveUnion(unionId: string, userId: string): Promise<void>;
   
@@ -214,6 +215,10 @@ export class MemStorage implements IStorage {
   async getUserUnions(userId: string): Promise<Union[]> {
     const memberRecords = Array.from(this.unionMembers.values()).filter((m: UnionMember) => m.userId === userId);
     return memberRecords.map((m: UnionMember) => this.unions.get(m.unionId)!).filter(Boolean);
+  }
+
+  async getUnionMembership(unionId: string, userId: string): Promise<UnionMember | undefined> {
+    return Array.from(this.unionMembers.values()).find((m: UnionMember) => m.unionId === unionId && m.userId === userId);
   }
 
   async joinUnion(insertMember: InsertUnionMember): Promise<UnionMember> {
@@ -687,6 +692,12 @@ export class DbStorage implements IStorage {
     const unionIds = members.map(m => m.unionId);
     if (unionIds.length === 0) return [];
     return await db.select().from(schema.unions).where(sql`${schema.unions.id} = ANY(${unionIds})`);
+  }
+
+  async getUnionMembership(unionId: string, userId: string): Promise<UnionMember | undefined> {
+    const result = await db.select().from(schema.unionMembers)
+      .where(sql`${schema.unionMembers.unionId} = ${unionId} AND ${schema.unionMembers.userId} = ${userId}`);
+    return result[0];
   }
 
   async joinUnion(member: InsertUnionMember): Promise<UnionMember> {

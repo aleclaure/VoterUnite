@@ -46,6 +46,11 @@ export default function UnionDetail() {
     enabled: !!selectedChannel,
   });
 
+  const { data: membership } = useQuery({
+    queryKey: ["/api/unions", unionId, "members", user?.id],
+    enabled: !!unionId && !!user?.id,
+  });
+
   const createChannelMutation = useMutation({
     mutationFn: async (data: { name: string; description?: string }) => {
       return await apiRequest(`/api/unions/${unionId}/channels`, {
@@ -97,9 +102,11 @@ export default function UnionDetail() {
         body: {},
       });
       await queryClient.invalidateQueries({ queryKey: ["/api/unions", unionId] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/unions", unionId, "members", user?.id] });
       toast({ title: "Success", description: "You've joined the union!" });
-    } catch (error) {
-      toast({ title: "Error", description: "Failed to join union", variant: "destructive" });
+    } catch (error: any) {
+      const errorMessage = error.message || "Failed to join union";
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
     }
   };
 
@@ -210,8 +217,14 @@ export default function UnionDetail() {
               </CardContent>
             </Card>
 
-            <Button onClick={handleJoin} className="w-full" size="lg" data-testid="button-join-union">
-              Join Union
+            <Button 
+              onClick={handleJoin} 
+              className="w-full" 
+              size="lg" 
+              data-testid="button-join-union"
+              disabled={!!membership}
+            >
+              {membership ? "Already a Member" : "Join Union"}
             </Button>
           </TabsContent>
 
