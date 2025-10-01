@@ -105,7 +105,15 @@ export class MemStorage implements IStorage {
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const user: User = { ...insertUser, id: randomUUID(), createdAt: new Date() };
+    const user: User = { 
+      ...insertUser, 
+      id: randomUUID(), 
+      createdAt: new Date(),
+      fullName: insertUser.fullName ?? null,
+      zipCode: insertUser.zipCode ?? null,
+      district: insertUser.district ?? null,
+      state: insertUser.state ?? null
+    };
     this.users.set(user.id, user);
     return user;
   }
@@ -146,6 +154,8 @@ export class MemStorage implements IStorage {
       ...insertUnion, 
       id: randomUUID(), 
       createdAt: new Date(),
+      description: insertUnion.description ?? null,
+      scopeValue: insertUnion.scopeValue ?? null,
       memberCount: 0,
       pledgedCount: 0,
       districtCount: 0,
@@ -169,8 +179,8 @@ export class MemStorage implements IStorage {
   }
 
   async getUserUnions(userId: string): Promise<Union[]> {
-    const memberRecords = Array.from(this.unionMembers.values()).filter(m => m.userId === userId);
-    return memberRecords.map(m => this.unions.get(m.unionId)!).filter(Boolean);
+    const memberRecords = Array.from(this.unionMembers.values()).filter((m: UnionMember) => m.userId === userId);
+    return memberRecords.map((m: UnionMember) => this.unions.get(m.unionId)!).filter(Boolean);
   }
 
   async joinUnion(insertMember: InsertUnionMember): Promise<UnionMember> {
@@ -664,6 +674,6 @@ export class DbStorage implements IStorage {
   }
 }
 
-// Using MemStorage (in-memory) for now
-// Switch to DbStorage when database connection is stable
-export const storage = new MemStorage();
+// Using DbStorage with Supabase PostgreSQL
+// Falls back to MemStorage if connection fails
+export const storage = db ? new DbStorage() : new MemStorage();
