@@ -83,6 +83,13 @@ export default function UnionDetail() {
     },
   });
 
+  // Auto-select first channel if none selected (MUST be before early returns!)
+  useEffect(() => {
+    if (channels.length > 0 && !selectedChannel) {
+      setSelectedChannel(channels[0].id);
+    }
+  }, [channels, selectedChannel]);
+
   const handleJoin = async () => {
     try {
       await apiRequest(`/api/unions/${unionId}/join`, {
@@ -109,13 +116,6 @@ export default function UnionDetail() {
     housing: "hsl(221, 83%, 53%)",
     healthcare: "hsl(262, 83%, 58%)",
   };
-
-  // Auto-select first channel if none selected
-  useEffect(() => {
-    if (channels.length > 0 && !selectedChannel) {
-      setSelectedChannel(channels[0].id);
-    }
-  }, [channels, selectedChannel]);
 
   return (
     <div className="min-h-screen py-12">
