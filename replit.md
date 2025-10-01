@@ -113,9 +113,11 @@ The mobile app is located in the `mobile/` directory and includes:
 - `navigation/AppNavigator.tsx`: React Navigation setup
 
 ## Environment Variables
-- `DATABASE_URL`: PostgreSQL connection string (automatically provided by Replit)
-- `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`: Database credentials
+- `SUPABASE_URL`: Your Supabase project URL (configured)
+- `SUPABASE_ANON_KEY`: Supabase anonymous API key (configured)
+- `SUPABASE_DB_PASSWORD`: Supabase database password (configured)
 - `SESSION_SECRET`: Session encryption secret
+- `DATABASE_URL`: Legacy PostgreSQL connection (replaced by Supabase)
 
 ## User Preferences
 - Follow modern web application best practices
@@ -126,21 +128,27 @@ The mobile app is located in the `mobile/` directory and includes:
 
 ## Current Status
 
-### Data Layer
-The application currently uses **MemStorage** (in-memory storage) for data persistence. This means:
-- ✅ All CRUD operations work correctly
-- ✅ Data persists during the session
-- ⚠️ Data resets when the server restarts
-- ✅ PostgreSQL schema is ready and can be migrated
-- ✅ DbStorage class is fully implemented and tested
+### Supabase Integration
+The application is **now integrated with Supabase**:
+- ✅ Supabase credentials configured (URL, API key, DB password)
+- ✅ PostgreSQL connection initialized and working
+- ✅ Mobile app configured with Supabase client
+- ✅ Backend ready to use DbStorage with Supabase
+- ⚠️ Currently using MemStorage (DbStorage enabled but tables not yet created)
 
-### Switching to PostgreSQL
-To enable PostgreSQL:
-1. Ensure `DATABASE_URL` in Replit Secrets points to a valid PostgreSQL instance
-2. Install `pg` package if not present
-3. Update `server/db.ts` to use `drizzle-orm/node-postgres` with `pg.Pool`
-4. Run `npm run db:push` to create tables
-5. In `server/storage.ts`, change: `export const storage = new DbStorage();`
+### Data Layer
+Currently using **MemStorage** (in-memory) as database tables need to be created in Supabase:
+- ✅ All CRUD operations work correctly
+- ✅ Supabase connection established
+- ⚠️ Data resets when server restarts (until tables are created)
+- ✅ DbStorage class ready to use Supabase PostgreSQL
+
+### Next: Create Tables in Supabase
+To complete the database setup:
+1. Go to your Supabase Dashboard → SQL Editor
+2. Run the schema creation SQL for all tables (users, unions, candidates, etc.)
+3. Or manually create tables using Supabase's Table Editor
+4. Once tables exist, the application will automatically use Supabase for persistence
 
 ## Next Steps
 1. **Database Migration**: Complete PostgreSQL setup and migrate schema
