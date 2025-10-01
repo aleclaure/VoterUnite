@@ -1,0 +1,61 @@
+The website is envisioned as a digital platform that acts as an effective intermediary for bottom-up, collective power by combining education, coordination, and action [1]. It is designed to function as a mix of a union organizing platform, a transparent political pledge system, and a community education hub [2].
+
+The core functionalities are organized into seven key areas:
+
+### 1. Collective Voting “Unions”
+This is considered the core engine of the platform [3, 4].
+
+*   **Creation and Joining:** Users can **join or create issue-based unions** (e.g., affordable housing, climate action) [2]. When creating a union, the creator sets the issue focus, initial demands, scope (national, state, district, city), and governance rules (e.g., decision-making method) [5].
+*   **Leverage Tracking:** Unions **track membership count within districts** to build leverage, allowing them to state, for example, “we represent X% of voters in this county” [2].
+*   **District Verification:** The system automatically tags users into their local district union data after they input their zip code or district (without revealing their full address) [6].
+*   **Internal Voting:** Members **vote internally** on their union’s platform (prioritized demands) using a digital ballot system that may include ranked-choice or simple majority voting [7, 8].
+*   **Transparency:** A **Public-Facing Union Page** displays the name, scope, current membership count, top platform demands (with percentage support), and a candidate scorecard showing alignment with demands [9].
+
+### 2. Voting Pledge System
+This functionality is crucial for turning unions into negotiating blocs and providing them with real bargaining power [4, 10, 11].
+
+*   **Pledging:** Members can **publicly or anonymously pledge their votes** only to candidates that meet the union's agreed conditions [7, 10].
+*   **Aggregation:** Pledges are **tallied by district** (congressional, state, city council), displaying public-facing counters and percentages relative to the voting population [10, 12].
+*   **Negotiation Tools:** A Candidate Dashboard shows candidates how many pledged voters exist in their district and the union demands. Candidates can then submit commitments by signing a digital pledge card [12].
+*   **Accountability:** Union members can **withdraw pledges** if candidates break commitments [13].
+*   **Public Pressure:** The system features visualizations and heat maps showing pledged blocs across the country [14].
+
+### 3. Transparency Dashboard
+This serves as the public-facing “scoreboard” and pressure tool that forces accountability [15].
+
+*   **Live Maps:** Provides an interactive map showing how many votes are **unionized/pledged per district/state** using color coding or heat maps [7, 15, 16].
+*   **Candidate Comparison:** Offers a **side-by-side display of candidate stances** versus union demands, making alignment visible at a glance (using markers like ✅ supports, ⚠ partial, ❌ opposes) [7, 16, 17].
+*   **Accountability Tracker:** **Tracks whether commitments were fulfilled** post-election, sourcing legislative action (e.g., did they co-sponsor or vote yes?) with a status marker (✅ kept / ❌ broken / ⏳ pending) [17-19].
+*   **Metrics:** Displays current pledged members, growth charts, and a **“Union Power Index”** (percentage of district covered by pledges) on district/union profile pages [19].
+*   **Personalization:** Includes a search bar where users can enter a ZIP code to instantly see local unions, vote counts, and candidate stance charts [20].
+
+### 4. Education & Tools
+This hub transforms passive supporters into active organizers by equipping users with knowledge and skills [21, 22].
+
+*   **Explainers:** Provides **plain-language explainers** (articles, graphics, videos) on topics like collective voting, union history adapted to electoral politics, and how collective voting shifts power [18, 23].
+*   **Workshops/Webinars:** Features an **events calendar** for live online trainings on organizing, local ballot initiatives, and lobbying, with an archive of recordings [18, 24].
+*   **Resource Library:** A searchable database for local grassroots movements, offering **downloadable templates** such as petition starter kits, canvassing scripts, and guides on running house meetings [18, 25].
+*   **Gamified Learning:** Includes quizzes and interactive modules to test knowledge, with badges like “Certified Local Organizer” for completing learning tracks [26].
+
+### 5. Communication & Organizing
+This functionality is the "engine room" that turns the power of pledged voters into real-world organizing [27].
+
+*   **Secure Communication:** Provides **secure chat/forum spaces for local unions** (e.g., for strategy, events, and resources), which users are automatically added to upon joining a union [18, 27].
+*   **Petition Pipeline:** A **Petition Builder** allows users to launch petitions, and after signing, users are prompted to **unionize their vote**, converting signatures into a pledge invitation [18, 28, 29].
+*   **Event Tools:** Organizers can **create and manage events** (in-person or virtual) like canvasses, town halls, and candidate Q&As, featuring an RSVP system and auto-generation of shareable posters [29, 30].
+*   **Workflows:** Includes organizing tools for task assignments and a **volunteer portal** to track progress toward goals [30, 31].
+
+### 6. Collective Action Beyond Voting
+This ensures unions maintain leverage and influence policy year-round, not just during election cycles [32].
+
+*   **Endorsement Process:** Unions use **internal voting** to endorse candidates or decide whether to support or oppose ballot initiatives [32-34].
+*   **Personalized Ballot Guide:** Users can generate their local ballot, which is overlaid with **their unions' endorsements** and layered recommendations for candidates/initiatives [33-35].
+*   **Collective Lobbying Tools:** Facilitates collective action via tools like **auto-generating letters** (pre-drafted and customizable) to representatives and scheduling structured **call-in days** with shared scripts and progress trackers [33, 35, 36].
+
+### 7. Gamification & Visibility
+This layer makes participation rewarding, visible, and motivates users to recruit others [37, 38].
+
+*   **Leaderboards:** Provides **Union Rankings** by size, growth, or geography (state/national/issue-based) to foster friendly competition [33, 37, 39].
+*   **Badges:** Awards badges to users (e.g., “Organizer,” “Union Builder”) and unions (e.g., “10% of Voters Organized”) for achieving milestones [33, 39, 40].
+*   **Social Sharing:** Includes **shareable graphics and auto-generated “I pledged” cards** that display the issue, district, and union size [33, 40].
+*   **Progress Tracking:** Uses progress bars for pledge goals and provides notifications when district milestones are reached (e.g., "Your union just reached 10% of district voters!") [13, 41].
