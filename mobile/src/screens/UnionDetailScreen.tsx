@@ -23,6 +23,7 @@ export default function UnionDetailScreen({ route, navigation }: any) {
   const [createChannelVisible, setCreateChannelVisible] = useState(false);
   const [createPostVisible, setCreatePostVisible] = useState(false);
   const [newChannelName, setNewChannelName] = useState('');
+  const [newChannelType, setNewChannelType] = useState<'text' | 'voice' | 'video'>('text');
   const [newPostTitle, setNewPostTitle] = useState('');
   const [newPostContent, setNewPostContent] = useState('');
 
@@ -103,11 +104,12 @@ export default function UnionDetailScreen({ route, navigation }: any) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.data.session?.access_token}`,
         },
-        body: JSON.stringify({ name: newChannelName }),
+        body: JSON.stringify({ name: newChannelName, channelType: newChannelType }),
       });
       
       if (response.ok) {
         setNewChannelName('');
+        setNewChannelType('text');
         setCreateChannelVisible(false);
         fetchChannels();
       }
@@ -247,23 +249,40 @@ export default function UnionDetailScreen({ route, navigation }: any) {
       {/* Channel Tabs */}
       <View style={styles.channelTabs}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.channelScrollView}>
-          {channels.map((channel) => (
-            <TouchableOpacity
-              key={channel.id}
-              style={[
-                styles.channelTab,
-                selectedChannel === channel.id && styles.channelTabActive,
-              ]}
-              onPress={() => setSelectedChannel(channel.id)}
-            >
-              <Text style={[
-                styles.channelTabText,
-                selectedChannel === channel.id && styles.channelTabTextActive,
-              ]}>
-                # {channel.name}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {channels.map((channel) => {
+            const getChannelIcon = () => {
+              switch (channel.channelType) {
+                case 'voice': return 'mic';
+                case 'video': return 'videocam';
+                default: return 'chatbox';
+              }
+            };
+            
+            return (
+              <TouchableOpacity
+                key={channel.id}
+                style={[
+                  styles.channelTab,
+                  selectedChannel === channel.id && styles.channelTabActive,
+                ]}
+                onPress={() => setSelectedChannel(channel.id)}
+              >
+                <View style={styles.channelTabContent}>
+                  <Ionicons 
+                    name={getChannelIcon()} 
+                    size={16} 
+                    color={selectedChannel === channel.id ? lightColors.primary : lightColors.textMuted} 
+                  />
+                  <Text style={[
+                    styles.channelTabText,
+                    selectedChannel === channel.id && styles.channelTabTextActive,
+                  ]}>
+                    {channel.name}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
           {user && (
             <TouchableOpacity
               style={styles.channelTabAdd}
@@ -327,9 +346,36 @@ export default function UnionDetailScreen({ route, navigation }: any) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Create Channel</Text>
+            
+            <Text style={styles.inputLabel}>Channel Type</Text>
+            <View style={styles.channelTypeSelector}>
+              <TouchableOpacity
+                style={[styles.channelTypeButton, newChannelType === 'text' && styles.channelTypeButtonActive]}
+                onPress={() => setNewChannelType('text')}
+              >
+                <Ionicons name="chatbox" size={20} color={newChannelType === 'text' ? lightColors.primary : lightColors.textMuted} />
+                <Text style={[styles.channelTypeText, newChannelType === 'text' && styles.channelTypeTextActive]}>Text</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.channelTypeButton, newChannelType === 'voice' && styles.channelTypeButtonActive]}
+                onPress={() => setNewChannelType('voice')}
+              >
+                <Ionicons name="mic" size={20} color={newChannelType === 'voice' ? lightColors.primary : lightColors.textMuted} />
+                <Text style={[styles.channelTypeText, newChannelType === 'voice' && styles.channelTypeTextActive]}>Voice</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.channelTypeButton, newChannelType === 'video' && styles.channelTypeButtonActive]}
+                onPress={() => setNewChannelType('video')}
+              >
+                <Ionicons name="videocam" size={20} color={newChannelType === 'video' ? lightColors.primary : lightColors.textMuted} />
+                <Text style={[styles.channelTypeText, newChannelType === 'video' && styles.channelTypeTextActive]}>Video</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.inputLabel}>Channel Name</Text>
             <TextInput
               style={styles.input}
-              placeholder="Channel name"
+              placeholder="e.g., general, strategy-call"
               value={newChannelName}
               onChangeText={setNewChannelName}
             />
@@ -611,6 +657,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2,
     borderBottomColor: lightColors.primary,
   },
+  channelTabContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   channelTabText: {
     fontSize: 16,
     color: lightColors.textMuted,
@@ -711,6 +762,12 @@ const styles = StyleSheet.create({
     color: lightColors.text,
     marginBottom: 16,
   },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: lightColors.text,
+    marginBottom: 8,
+  },
   input: {
     borderWidth: 1,
     borderColor: lightColors.border,
@@ -722,6 +779,36 @@ const styles = StyleSheet.create({
   textArea: {
     height: 120,
     textAlignVertical: 'top',
+  },
+  channelTypeSelector: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  channelTypeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: lightColors.border,
+    backgroundColor: '#fff',
+  },
+  channelTypeButtonActive: {
+    borderColor: lightColors.primary,
+    backgroundColor: lightColors.primary + '10',
+  },
+  channelTypeText: {
+    fontSize: 14,
+    color: lightColors.textMuted,
+    fontWeight: '500',
+  },
+  channelTypeTextActive: {
+    color: lightColors.primary,
+    fontWeight: '600',
   },
   modalButtons: {
     flexDirection: 'row',
