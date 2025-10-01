@@ -9,6 +9,7 @@ import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import Unions from "@/pages/unions";
 import UnionDetail from "@/pages/union-detail";
+import PostDetail from "@/pages/post-detail";
 import Dashboard from "@/pages/dashboard";
 import Education from "@/pages/education";
 import Events from "@/pages/events";
@@ -26,6 +27,7 @@ function Router() {
         <Route path="/" component={Home} />
         <Route path="/unions" component={Unions} />
         <Route path="/unions/:id" component={UnionDetail} />
+        <Route path="/posts/:id" component={PostDetail} />
         <Route path="/dashboard">
           <ProtectedRoute>
             <Dashboard />
