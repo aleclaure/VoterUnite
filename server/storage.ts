@@ -10,7 +10,11 @@ import {
   type EventAttendee, type InsertEventAttendee,
   type Ballot, type InsertBallot,
   type Vote, type InsertVote,
-  type UserBadge, type InsertUserBadge
+  type UserBadge, type InsertUserBadge,
+  type UnionChannel, type InsertUnionChannel,
+  type DiscussionPost, type InsertDiscussionPost,
+  type PostComment, type InsertPostComment,
+  type PostVote, type InsertPostVote
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -75,6 +79,31 @@ export interface IStorage {
   // Badges
   getUserBadges(userId: string): Promise<UserBadge[]>;
   awardBadge(badge: InsertUserBadge): Promise<UserBadge>;
+  
+  // Discussion System
+  // Channels
+  getUnionChannels(unionId: string): Promise<UnionChannel[]>;
+  createChannel(channel: InsertUnionChannel): Promise<UnionChannel>;
+  deleteChannel(id: string): Promise<void>;
+  
+  // Posts
+  getChannelPosts(channelId: string): Promise<DiscussionPost[]>;
+  getPost(id: string): Promise<DiscussionPost | undefined>;
+  createPost(post: InsertDiscussionPost): Promise<DiscussionPost>;
+  updatePost(id: string, updates: Partial<InsertDiscussionPost>): Promise<DiscussionPost>;
+  deletePost(id: string): Promise<void>;
+  
+  // Comments
+  getPostComments(postId: string): Promise<PostComment[]>;
+  createComment(comment: InsertPostComment): Promise<PostComment>;
+  updateComment(id: string, updates: Partial<InsertPostComment>): Promise<PostComment>;
+  deleteComment(id: string): Promise<void>;
+  
+  // Votes
+  getUserVoteForPost(userId: string, postId: string): Promise<PostVote | undefined>;
+  getUserVoteForComment(userId: string, commentId: string): Promise<PostVote | undefined>;
+  votePost(vote: InsertPostVote): Promise<PostVote>;
+  deleteVote(id: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -90,6 +119,10 @@ export class MemStorage implements IStorage {
   private ballots: Map<string, Ballot> = new Map();
   private votes: Map<string, Vote> = new Map();
   private userBadges: Map<string, UserBadge> = new Map();
+  private unionChannels: Map<string, UnionChannel> = new Map();
+  private discussionPosts: Map<string, DiscussionPost> = new Map();
+  private postComments: Map<string, PostComment> = new Map();
+  private postVotes: Map<string, PostVote> = new Map();
 
   // Users
   async getUser(id: string): Promise<User | undefined> {
@@ -411,6 +444,166 @@ export class MemStorage implements IStorage {
     this.userBadges.set(badge.id, badge);
     return badge;
   }
+
+  // Discussion System - Channels
+  async getUnionChannels(unionId: string): Promise<UnionChannel[]> {
+    return Array.from(this.unionChannels.values()).filter(c => c.unionId === unionId);
+  }
+
+  async createChannel(insertChannel: InsertUnionChannel): Promise<UnionChannel> {
+    const channel: UnionChannel = { ...insertChannel, id: randomUUID(), createdAt: new Date() };
+    this.unionChannels.set(channel.id, channel);
+    return channel;
+  }
+
+  async deleteChannel(id: string): Promise<void> {
+    this.unionChannels.delete(id);
+  }
+
+  // Discussion System - Posts
+  async getChannelPosts(channelId: string): Promise<DiscussionPost[]> {
+    return Array.from(this.discussionPosts.values())
+      .filter(p => p.channelId === channelId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async getPost(id: string): Promise<DiscussionPost | undefined> {
+    return this.discussionPosts.get(id);
+  }
+
+  async createPost(insertPost: InsertDiscussionPost): Promise<DiscussionPost> {
+    const post: DiscussionPost = { 
+      ...insertPost, 
+      id: randomUUID(), 
+      upvotes: 0,
+      downvotes: 0,
+      commentCount: 0,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    this.discussionPosts.set(post.id, post);
+    return post;
+  }
+
+  async updatePost(id: string, updates: Partial<InsertDiscussionPost>): Promise<DiscussionPost> {
+    const post = this.discussionPosts.get(id);
+    if (!post) throw new Error("Post not found");
+    const updated = { ...post, ...updates, updatedAt: new Date() };
+    this.discussionPosts.set(id, updated);
+    return updated;
+  }
+
+  async deletePost(id: string): Promise<void> {
+    this.discussionPosts.delete(id);
+  }
+
+  // Discussion System - Comments
+  async getPostComments(postId: string): Promise<PostComment[]> {
+    return Array.from(this.postComments.values())
+      .filter(c => c.postId === postId)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  }
+
+  async createComment(insertComment: InsertPostComment): Promise<PostComment> {
+    const comment: PostComment = { 
+      ...insertComment, 
+      id: randomUUID(), 
+      upvotes: 0,
+      downvotes: 0,
+      depth: 0,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    this.postComments.set(comment.id, comment);
+    
+    // Increment post comment count
+    const post = this.discussionPosts.get(comment.postId);
+    if (post) {
+      post.commentCount++;
+      this.discussionPosts.set(post.id, post);
+    }
+    
+    return comment;
+  }
+
+  async updateComment(id: string, updates: Partial<InsertPostComment>): Promise<PostComment> {
+    const comment = this.postComments.get(id);
+    if (!comment) throw new Error("Comment not found");
+    const updated = { ...comment, ...updates, updatedAt: new Date() };
+    this.postComments.set(id, updated);
+    return updated;
+  }
+
+  async deleteComment(id: string): Promise<void> {
+    const comment = this.postComments.get(id);
+    if (comment) {
+      // Decrement post comment count
+      const post = this.discussionPosts.get(comment.postId);
+      if (post && post.commentCount > 0) {
+        post.commentCount--;
+        this.discussionPosts.set(post.id, post);
+      }
+    }
+    this.postComments.delete(id);
+  }
+
+  // Discussion System - Votes
+  async getUserVoteForPost(userId: string, postId: string): Promise<PostVote | undefined> {
+    return Array.from(this.postVotes.values())
+      .find(v => v.userId === userId && v.postId === postId);
+  }
+
+  async getUserVoteForComment(userId: string, commentId: string): Promise<PostVote | undefined> {
+    return Array.from(this.postVotes.values())
+      .find(v => v.userId === userId && v.commentId === commentId);
+  }
+
+  async votePost(insertVote: InsertPostVote): Promise<PostVote> {
+    const vote: PostVote = { ...insertVote, id: randomUUID(), createdAt: new Date() };
+    this.postVotes.set(vote.id, vote);
+    
+    // Update vote counts
+    if (vote.postId) {
+      const post = this.discussionPosts.get(vote.postId);
+      if (post) {
+        if (vote.voteType === 'upvote') post.upvotes++;
+        else post.downvotes++;
+        this.discussionPosts.set(post.id, post);
+      }
+    } else if (vote.commentId) {
+      const comment = this.postComments.get(vote.commentId);
+      if (comment) {
+        if (vote.voteType === 'upvote') comment.upvotes++;
+        else comment.downvotes++;
+        this.postComments.set(comment.id, comment);
+      }
+    }
+    
+    return vote;
+  }
+
+  async deleteVote(id: string): Promise<void> {
+    const vote = this.postVotes.get(id);
+    if (vote) {
+      // Update vote counts
+      if (vote.postId) {
+        const post = this.discussionPosts.get(vote.postId);
+        if (post) {
+          if (vote.voteType === 'upvote' && post.upvotes > 0) post.upvotes--;
+          else if (vote.voteType === 'downvote' && post.downvotes > 0) post.downvotes--;
+          this.discussionPosts.set(post.id, post);
+        }
+      } else if (vote.commentId) {
+        const comment = this.postComments.get(vote.commentId);
+        if (comment) {
+          if (vote.voteType === 'upvote' && comment.upvotes > 0) comment.upvotes--;
+          else if (vote.voteType === 'downvote' && comment.downvotes > 0) comment.downvotes--;
+          this.postComments.set(comment.id, comment);
+        }
+      }
+    }
+    this.postVotes.delete(id);
+  }
 }
 
 import { db } from "./db";
@@ -671,6 +864,106 @@ export class DbStorage implements IStorage {
   async awardBadge(badge: InsertUserBadge): Promise<UserBadge> {
     const result = await db.insert(schema.userBadges).values(badge).returning();
     return result[0];
+  }
+
+  // Discussion System - Channels
+  async getUnionChannels(unionId: string): Promise<UnionChannel[]> {
+    return await db.select().from(schema.unionChannels)
+      .where(eq(schema.unionChannels.unionId, unionId))
+      .orderBy(schema.unionChannels.createdAt);
+  }
+
+  async createChannel(channel: InsertUnionChannel): Promise<UnionChannel> {
+    const result = await db.insert(schema.unionChannels).values(channel).returning();
+    return result[0];
+  }
+
+  async deleteChannel(id: string): Promise<void> {
+    await db.delete(schema.unionChannels).where(eq(schema.unionChannels.id, id));
+  }
+
+  // Discussion System - Posts
+  async getChannelPosts(channelId: string): Promise<DiscussionPost[]> {
+    return await db.select().from(schema.discussionPosts)
+      .where(eq(schema.discussionPosts.channelId, channelId))
+      .orderBy(desc(schema.discussionPosts.createdAt));
+  }
+
+  async getPost(id: string): Promise<DiscussionPost | undefined> {
+    const result = await db.select().from(schema.discussionPosts)
+      .where(eq(schema.discussionPosts.id, id));
+    return result[0];
+  }
+
+  async createPost(post: InsertDiscussionPost): Promise<DiscussionPost> {
+    const result = await db.insert(schema.discussionPosts).values(post).returning();
+    return result[0];
+  }
+
+  async updatePost(id: string, updates: Partial<InsertDiscussionPost>): Promise<DiscussionPost> {
+    const result = await db.update(schema.discussionPosts)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(schema.discussionPosts.id, id))
+      .returning();
+    if (!result[0]) throw new Error("Post not found");
+    return result[0];
+  }
+
+  async deletePost(id: string): Promise<void> {
+    await db.delete(schema.discussionPosts).where(eq(schema.discussionPosts.id, id));
+  }
+
+  // Discussion System - Comments
+  async getPostComments(postId: string): Promise<PostComment[]> {
+    return await db.select().from(schema.postComments)
+      .where(eq(schema.postComments.postId, postId))
+      .orderBy(schema.postComments.createdAt);
+  }
+
+  async createComment(comment: InsertPostComment): Promise<PostComment> {
+    const result = await db.insert(schema.postComments).values(comment).returning();
+    return result[0];
+  }
+
+  async updateComment(id: string, updates: Partial<InsertPostComment>): Promise<PostComment> {
+    const result = await db.update(schema.postComments)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(schema.postComments.id, id))
+      .returning();
+    if (!result[0]) throw new Error("Comment not found");
+    return result[0];
+  }
+
+  async deleteComment(id: string): Promise<void> {
+    await db.delete(schema.postComments).where(eq(schema.postComments.id, id));
+  }
+
+  // Discussion System - Votes
+  async getUserVoteForPost(userId: string, postId: string): Promise<PostVote | undefined> {
+    const result = await db.select().from(schema.postVotes)
+      .where(and(
+        eq(schema.postVotes.userId, userId),
+        eq(schema.postVotes.postId, postId)
+      ));
+    return result[0];
+  }
+
+  async getUserVoteForComment(userId: string, commentId: string): Promise<PostVote | undefined> {
+    const result = await db.select().from(schema.postVotes)
+      .where(and(
+        eq(schema.postVotes.userId, userId),
+        eq(schema.postVotes.commentId, commentId)
+      ));
+    return result[0];
+  }
+
+  async votePost(vote: InsertPostVote): Promise<PostVote> {
+    const result = await db.insert(schema.postVotes).values(vote).returning();
+    return result[0];
+  }
+
+  async deleteVote(id: string): Promise<void> {
+    await db.delete(schema.postVotes).where(eq(schema.postVotes.id, id));
   }
 }
 

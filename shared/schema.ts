@@ -176,11 +176,11 @@ export const discussionPosts = pgTable("discussion_posts", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-// Post Comments (Nested threading)
+// Post Comments (Nested threading - self-reference handled by SQL)
 export const postComments = pgTable("post_comments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   postId: varchar("post_id").references(() => discussionPosts.id).notNull(),
-  parentCommentId: varchar("parent_comment_id").references(() => postComments.id),
+  parentCommentId: varchar("parent_comment_id"), // Self-reference via SQL foreign key
   authorId: varchar("author_id").notNull(), // UUID from auth.users
   content: text("content").notNull(),
   upvotes: integer("upvotes").default(0),
