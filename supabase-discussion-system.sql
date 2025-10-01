@@ -190,15 +190,17 @@ CREATE POLICY "Anyone can view discussion posts"
   ON discussion_posts FOR SELECT
   USING (true);
 
--- Authenticated union members can create posts
-CREATE POLICY "Union members can create posts"
+-- Authenticated union members can create posts in channels they belong to
+CREATE POLICY "Union members can create posts in their channels"
   ON discussion_posts FOR INSERT
   WITH CHECK (
     auth.uid() = author_id AND
     EXISTS (
-      SELECT 1 FROM union_members
-      WHERE union_members.union_id = discussion_posts.union_id
-      AND union_members.user_id = auth.uid()
+      SELECT 1 FROM union_channels uc
+      JOIN union_members um ON um.union_id = uc.union_id
+      WHERE uc.id = discussion_posts.channel_id
+      AND uc.union_id = discussion_posts.union_id
+      AND um.user_id = auth.uid()
     )
   );
 
@@ -218,10 +220,18 @@ CREATE POLICY "Anyone can view comments"
   ON post_comments FOR SELECT
   USING (true);
 
--- Authenticated users can create comments
-CREATE POLICY "Authenticated users can create comments"
+-- Union members can create comments
+CREATE POLICY "Union members can create comments"
   ON post_comments FOR INSERT
-  WITH CHECK (auth.uid() = author_id);
+  WITH CHECK (
+    auth.uid() = author_id AND
+    EXISTS (
+      SELECT 1 FROM discussion_posts dp
+      JOIN union_members um ON um.union_id = dp.union_id
+      WHERE dp.id = post_comments.post_id
+      AND um.user_id = auth.uid()
+    )
+  );
 
 -- Authors can update their own comments
 CREATE POLICY "Authors can update their comments"
@@ -239,15 +249,52 @@ CREATE POLICY "Users can view their own votes"
   ON post_votes FOR SELECT
   USING (auth.uid() = user_id);
 
--- Authenticated users can vote
-CREATE POLICY "Authenticated users can vote"
+-- Union members can vote on posts
+CREATE POLICY "Union members can vote on posts"
   ON post_votes FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK (
+    auth.uid() = user_id AND
+    (
+      (post_id IS NOT NULL AND EXISTS (
+        SELECT 1 FROM discussion_posts dp
+        JOIN union_members um ON um.union_id = dp.union_id
+        WHERE dp.id = post_votes.post_id
+        AND um.user_id = auth.uid()
+      ))
+      OR
+      (comment_id IS NOT NULL AND EXISTS (
+        SELECT 1 FROM post_comments pc
+        JOIN discussion_posts dp ON dp.id = pc.post_id
+        JOIN union_members um ON um.union_id = dp.union_id
+        WHERE pc.id = post_votes.comment_id
+        AND um.user_id = auth.uid()
+      ))
+    )
+  );
 
 -- Users can update their own votes (change upvote to downvote)
 CREATE POLICY "Users can update their votes"
   ON post_votes FOR UPDATE
-  USING (auth.uid() = user_id);
+  USING (auth.uid() = user_id)
+  WITH CHECK (
+    auth.uid() = user_id AND
+    (
+      (post_id IS NOT NULL AND EXISTS (
+        SELECT 1 FROM discussion_posts dp
+        JOIN union_members um ON um.union_id = dp.union_id
+        WHERE dp.id = post_votes.post_id
+        AND um.user_id = auth.uid()
+      ))
+      OR
+      (comment_id IS NOT NULL AND EXISTS (
+        SELECT 1 FROM post_comments pc
+        JOIN discussion_posts dp ON dp.id = pc.post_id
+        JOIN union_members um ON um.union_id = dp.union_id
+        WHERE pc.id = post_votes.comment_id
+        AND um.user_id = auth.uid()
+      ))
+    )
+  );
 
 -- Users can delete their own votes (unvote)
 CREATE POLICY "Users can delete their votes"

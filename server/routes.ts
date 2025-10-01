@@ -6,7 +6,8 @@ import {
   insertUserSchema, insertUnionSchema, insertUnionMemberSchema, 
   insertUnionDemandSchema, insertPledgeSchema, insertCandidateSchema,
   insertCandidateCommitmentSchema, insertEventSchema, insertEventAttendeeSchema,
-  insertBallotSchema, insertVoteSchema, insertUserBadgeSchema
+  insertBallotSchema, insertVoteSchema, insertUserBadgeSchema,
+  insertUnionChannelSchema, insertDiscussionPostSchema, insertPostCommentSchema, insertPostVoteSchema
 } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -235,6 +236,155 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/users/:id/badges", async (req, res) => {
     const badges = await storage.getUserBadges(req.params.id);
     res.json(badges);
+  });
+
+  // Discussion System - Channels
+  app.get("/api/unions/:id/channels", async (req, res) => {
+    const channels = await storage.getUnionChannels(req.params.id);
+    res.json(channels);
+  });
+
+  app.post("/api/unions/:id/channels", requireAuth, async (req, res) => {
+    try {
+      const channelData = insertUnionChannelSchema.parse({
+        unionId: req.params.id,
+        createdBy: req.userId,
+        ...req.body
+      });
+      const channel = await storage.createChannel(channelData);
+      res.json(channel);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/channels/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteChannel(req.params.id);
+      res.json({ message: "Channel deleted" });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  // Discussion System - Posts
+  app.get("/api/channels/:id/posts", async (req, res) => {
+    const posts = await storage.getChannelPosts(req.params.id);
+    res.json(posts);
+  });
+
+  app.get("/api/posts/:id", async (req, res) => {
+    const post = await storage.getPost(req.params.id);
+    if (!post) return res.status(404).json({ message: "Post not found" });
+    res.json(post);
+  });
+
+  app.post("/api/channels/:id/posts", requireAuth, async (req, res) => {
+    try {
+      const postData = insertDiscussionPostSchema.parse({
+        channelId: req.params.id,
+        authorId: req.userId,
+        ...req.body
+      });
+      const post = await storage.createPost(postData);
+      res.json(post);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  app.patch("/api/posts/:id", requireAuth, async (req, res) => {
+    try {
+      const post = await storage.updatePost(req.params.id, req.body);
+      res.json(post);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/posts/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deletePost(req.params.id);
+      res.json({ message: "Post deleted" });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  // Discussion System - Comments
+  app.get("/api/posts/:id/comments", async (req, res) => {
+    const comments = await storage.getPostComments(req.params.id);
+    res.json(comments);
+  });
+
+  app.post("/api/posts/:id/comments", requireAuth, async (req, res) => {
+    try {
+      const commentData = insertPostCommentSchema.parse({
+        postId: req.params.id,
+        authorId: req.userId,
+        ...req.body
+      });
+      const comment = await storage.createComment(commentData);
+      res.json(comment);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  app.patch("/api/comments/:id", requireAuth, async (req, res) => {
+    try {
+      const comment = await storage.updateComment(req.params.id, req.body);
+      res.json(comment);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/comments/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteComment(req.params.id);
+      res.json({ message: "Comment deleted" });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  // Discussion System - Votes
+  app.post("/api/posts/:id/vote", requireAuth, async (req, res) => {
+    try {
+      const voteData = insertPostVoteSchema.parse({
+        postId: req.params.id,
+        userId: req.userId,
+        voteType: req.body.voteType
+      });
+      const vote = await storage.votePost(voteData);
+      res.json(vote);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/comments/:id/vote", requireAuth, async (req, res) => {
+    try {
+      const voteData = insertPostVoteSchema.parse({
+        commentId: req.params.id,
+        userId: req.userId,
+        voteType: req.body.voteType
+      });
+      const vote = await storage.votePost(voteData);
+      res.json(vote);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/votes/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteVote(req.params.id);
+      res.json({ message: "Vote removed" });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
   });
 
   const httpServer = createServer(app);
