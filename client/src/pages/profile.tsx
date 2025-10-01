@@ -1,33 +1,38 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
+import { useAuth } from "@/contexts/AuthContext";
+import { useQuery } from "@tanstack/react-query";
 
 export default function Profile() {
-  const mockUser = {
-    username: "voter123",
-    email: "voter@example.com",
-    fullName: "John Doe",
-    district: "CA-12",
-    state: "California",
-    zipCode: "94102",
-  };
+  const { user, signOut } = useAuth();
+  const [, setLocation] = useLocation();
+
+  const { data: myUnions = [] } = useQuery({
+    queryKey: ["/api/users", user?.id, "unions"],
+    enabled: !!user?.id,
+  });
+
+  const { data: myPledges = [] } = useQuery({
+    queryKey: ["/api/users", user?.id, "pledges"],
+    enabled: !!user?.id,
+  });
+
+  const { data: myBadges = [] } = useQuery({
+    queryKey: ["/api/users", user?.id, "badges"],
+    enabled: !!user?.id,
+  });
 
   const stats = {
-    unionsJoined: 3,
-    pledgesMade: 5,
-    eventsAttended: 12,
+    unionsJoined: myUnions.length,
+    pledgesMade: myPledges.length,
+    eventsAttended: 0,
   };
 
-  const badges = [
-    { type: "first_union", label: "First Union" },
-    { type: "pledged", label: "Pledged" },
-    { type: "organizer", label: "Organizer" },
-  ];
-
-  const myUnions = [
-    { id: 1, name: "Climate Action Now", category: "climate", joinedAt: "2024-01-15" },
-    { id: 2, name: "Affordable Housing Coalition", category: "housing", joinedAt: "2024-02-01" },
-  ];
+  const handleSignOut = async () => {
+    await signOut();
+    setLocation('/');
+  };
 
   return (
     <div className="min-h-screen py-12">
@@ -36,18 +41,13 @@ export default function Profile() {
           <CardContent className="p-8">
             <div className="flex items-center gap-6">
               <div className="w-20 h-20 rounded-full bg-primary text-white flex items-center justify-center text-3xl font-bold">
-                {mockUser.fullName?.split(' ').map(n => n[0]).join('') || mockUser.username[0].toUpperCase()}
+                {user?.user_metadata?.full_name?.split(' ').map((n: string) => n[0]).join('') || user?.email?.[0].toUpperCase()}
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-foreground mb-1" data-testid="profile-name">
-                  {mockUser.fullName || mockUser.username}
+                  {user?.user_metadata?.full_name || user?.email?.split('@')[0]}
                 </h1>
-                <p className="text-muted-foreground">{mockUser.email}</p>
-                {mockUser.district && (
-                  <p className="text-sm text-muted-foreground mt-1">
-                    📍 {mockUser.district}, {mockUser.state}
-                  </p>
-                )}
+                <p className="text-muted-foreground">{user?.email}</p>
               </div>
             </div>
           </CardContent>
@@ -80,23 +80,25 @@ export default function Profile() {
           </Card>
         </div>
 
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle>Badges Earned</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-4">
-              {badges.map((badge) => (
-                <div key={badge.type} className="text-center">
-                  <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mb-2">
-                    <span className="text-2xl">🏆</span>
+        {myBadges.length > 0 && (
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle>Badges Earned</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-4">
+                {myBadges.map((badge: any) => (
+                  <div key={badge.badgeType} className="text-center">
+                    <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mb-2">
+                      <span className="text-2xl">🏆</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{badge.badgeType}</p>
                   </div>
-                  <p className="text-xs text-muted-foreground">{badge.label}</p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="mb-8">
           <CardHeader>
@@ -104,15 +106,20 @@ export default function Profile() {
           </CardHeader>
           <CardContent>
             {myUnions.length === 0 ? (
-              <p className="text-muted-foreground">You haven't joined any unions yet</p>
+              <div className="text-center py-8">
+                <p className="text-muted-foreground mb-4">You haven't joined any unions yet</p>
+                <Link href="/unions">
+                  <Button>Browse Unions</Button>
+                </Link>
+              </div>
             ) : (
               <div className="space-y-3">
-                {myUnions.map((union) => (
+                {myUnions.map((union: any) => (
                   <div key={union.id} className="flex items-center justify-between p-4 border border-border rounded-lg">
                     <div>
                       <h3 className="font-medium text-foreground">{union.name}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Member since {new Date(union.joinedAt).toLocaleDateString()}
+                      <p className="text-sm text-muted-foreground capitalize">
+                        {union.category} • {union.memberCount || 0} members
                       </p>
                     </div>
                     <Link href={`/unions/${union.id}`}>
@@ -136,7 +143,12 @@ export default function Profile() {
             <Button variant="outline" className="w-full justify-start" data-testid="button-help">
               ❓ Help & Support
             </Button>
-            <Button variant="outline" className="w-full justify-start text-destructive" data-testid="button-signout">
+            <Button 
+              variant="outline" 
+              className="w-full justify-start text-destructive" 
+              onClick={handleSignOut}
+              data-testid="button-signout-profile"
+            >
               🚪 Sign Out
             </Button>
           </CardContent>

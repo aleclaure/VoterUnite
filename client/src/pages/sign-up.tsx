@@ -131,10 +131,8 @@ export default function SignUp() {
             </Button>
             <p className="text-sm text-center text-gray-600 dark:text-gray-400">
               Already have an account?{' '}
-              <Link href="/sign-in">
-                <a className="text-blue-600 hover:text-blue-700 font-medium" data-testid="link-signin">
-                  Sign in
-                </a>
+              <Link href="/sign-in" className="text-blue-600 hover:text-blue-700 font-medium" data-testid="link-signin">
+                Sign in
               </Link>
             </p>
           </CardFooter>

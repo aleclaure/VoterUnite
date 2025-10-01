@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { requireAuth } from "./auth";
 import { 
   insertUserSchema, insertUnionSchema, insertUnionMemberSchema, 
   insertUnionDemandSchema, insertPledgeSchema, insertCandidateSchema,
@@ -44,9 +45,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(union);
   });
 
-  app.post("/api/unions", async (req, res) => {
+  app.post("/api/unions", requireAuth, async (req, res) => {
     try {
-      const unionData = insertUnionSchema.parse(req.body);
+      const unionData = insertUnionSchema.parse({
+        ...req.body,
+        creatorId: req.userId
+      });
       const union = await storage.createUnion(unionData);
       res.json(union);
     } catch (error: any) {
@@ -55,11 +59,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Union Members
-  app.post("/api/unions/:id/join", async (req, res) => {
+  app.post("/api/unions/:id/join", requireAuth, async (req, res) => {
     try {
       const memberData = insertUnionMemberSchema.parse({
         unionId: req.params.id,
-        userId: req.body.userId,
+        userId: req.userId,
         role: req.body.role || "member"
       });
       const member = await storage.joinUnion(memberData);
@@ -99,9 +103,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(pledges);
   });
 
-  app.post("/api/pledges", async (req, res) => {
+  app.post("/api/pledges", requireAuth, async (req, res) => {
     try {
-      const pledgeData = insertPledgeSchema.parse(req.body);
+      const pledgeData = insertPledgeSchema.parse({
+        ...req.body,
+        userId: req.userId
+      });
       const pledge = await storage.createPledge(pledgeData);
       res.json(pledge);
     } catch (error: any) {
@@ -164,9 +171,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(events);
   });
 
-  app.post("/api/events", async (req, res) => {
+  app.post("/api/events", requireAuth, async (req, res) => {
     try {
-      const eventData = insertEventSchema.parse(req.body);
+      const eventData = insertEventSchema.parse({
+        ...req.body,
+        creatorId: req.userId
+      });
       const event = await storage.createEvent(eventData);
       res.json(event);
     } catch (error: any) {
@@ -174,11 +184,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/events/:id/rsvp", async (req, res) => {
+  app.post("/api/events/:id/rsvp", requireAuth, async (req, res) => {
     try {
       const attendeeData = insertEventAttendeeSchema.parse({
         eventId: req.params.id,
-        userId: req.body.userId,
+        userId: req.userId,
         rsvpStatus: req.body.rsvpStatus || "going"
       });
       const attendee = await storage.rsvpEvent(attendeeData);
@@ -194,9 +204,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(ballots);
   });
 
-  app.post("/api/ballots", async (req, res) => {
+  app.post("/api/ballots", requireAuth, async (req, res) => {
     try {
-      const ballotData = insertBallotSchema.parse(req.body);
+      const ballotData = insertBallotSchema.parse({
+        ...req.body,
+        creatorId: req.userId
+      });
       const ballot = await storage.createBallot(ballotData);
       res.json(ballot);
     } catch (error: any) {
@@ -205,9 +218,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Votes
-  app.post("/api/votes", async (req, res) => {
+  app.post("/api/votes", requireAuth, async (req, res) => {
     try {
-      const voteData = insertVoteSchema.parse(req.body);
+      const voteData = insertVoteSchema.parse({
+        ...req.body,
+        userId: req.userId
+      });
       const vote = await storage.castVote(voteData);
       res.json(vote);
     } catch (error: any) {

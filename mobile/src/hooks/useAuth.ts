@@ -1,51 +1,27 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../config/supabase';
-import { User } from '../types';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     // Check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        fetchUserData(session.user.id);
-      } else {
-        setLoading(false);
-      }
+      setUser(session?.user ?? null);
+      setLoading(false);
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        fetchUserData(session.user.id);
-      } else {
-        setUser(null);
-        setLoading(false);
-      }
+      setUser(session?.user ?? null);
+      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
   }, []);
-
-  const fetchUserData = async (userId: string) => {
-    try {
-      const { data, error: fetchError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (fetchError) throw fetchError;
-      setUser(data);
-    } catch (err) {
-      setError(err as Error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const signIn = async (email: string, password: string) => {
     try {
@@ -56,12 +32,10 @@ export function useAuth() {
       });
 
       if (signInError) throw signInError;
-      if (data.user) {
-        await fetchUserData(data.user.id);
-      }
+      return { data, error: null };
     } catch (err) {
       setError(err as Error);
-      throw err;
+      return { data: null, error: err as Error };
     } finally {
       setLoading(false);
     }
@@ -70,35 +44,31 @@ export function useAuth() {
   const signUp = async (userData: {
     email: string;
     password: string;
-    username: string;
+    username?: string;
     fullName?: string;
     zipCode?: string;
   }) => {
     try {
       setLoading(true);
       
-      // Create auth user
+      // Create auth user with metadata
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: userData.email,
         password: userData.password,
+        options: {
+          data: {
+            full_name: userData.fullName || userData.username,
+            username: userData.username,
+            zip_code: userData.zipCode,
+          },
+        },
       });
 
       if (authError) throw authError;
-      if (!authData.user) throw new Error('Failed to create user');
-
-      // Create user record
-      const { error: userError } = await supabase.from('users').insert({
-        id: authData.user.id,
-        email: userData.email,
-        username: userData.username,
-        fullName: userData.fullName,
-        zipCode: userData.zipCode,
-      });
-
-      if (userError) throw userError;
+      return { data: authData, error: null };
     } catch (err) {
       setError(err as Error);
-      throw err;
+      return { data: null, error: err as Error };
     } finally {
       setLoading(false);
     }
@@ -110,9 +80,10 @@ export function useAuth() {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       setUser(null);
+      return { error: null };
     } catch (err) {
       setError(err as Error);
-      throw err;
+      return { error: err as Error };
     } finally {
       setLoading(false);
     }

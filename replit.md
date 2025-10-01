@@ -82,6 +82,12 @@ npm run db:push --force  # Force push if there are warnings
 - ✅ Implemented DbStorage class with full CRUD operations for PostgreSQL
 - ✅ Fixed all nested anchor tag warnings in UI components
 - ✅ Implemented proper queryKey structure using array segments
+- ✅ **Implemented Supabase Authentication for both web and mobile**
+  - Email/password authentication with sign-up, sign-in, sign-out
+  - Protected routes and session persistence
+  - JWT token validation on backend
+  - User actions automatically linked to authenticated user
+  - Profile page showing user's own data
 - ⚠️ Currently using MemStorage (in-memory) for data persistence
 - ⚠️ PostgreSQL integration ready but needs proper DATABASE_URL configuration
 
@@ -264,9 +270,38 @@ To complete the database setup:
 3. Or manually create tables using Supabase's Table Editor
 4. Once tables exist, the application will automatically use Supabase for persistence
 
+## Authentication Implementation
+
+### Web App (client/)
+- **AuthContext** (`client/src/contexts/AuthContext.tsx`): Manages authentication state using Supabase Auth
+- **Sign-in/Sign-up Pages**: Email/password forms with validation
+- **Protected Routes** (`client/src/components/ProtectedRoute.tsx`): Redirects unauthenticated users
+- **Profile Page**: Shows authenticated user's unions, pledges, and badges
+- **Navbar**: Conditional sign-in/sign-out buttons based on auth state
+
+### Mobile App (mobile/)
+- **Supabase Client** (`mobile/src/config/supabase.ts`): Configured with AsyncStorage for React Native
+- **AuthContext** (`mobile/src/contexts/AuthContext.tsx`): Centralized auth state management
+- **AuthScreen**: Combined sign-in/sign-up interface with tab navigation
+- **Session Persistence**: Automatic session restoration on app restart
+
+### Backend (server/)
+- **Auth Middleware** (`server/auth.ts`): Extracts and validates JWT tokens from requests
+- **Protected Routes**: All create/update endpoints require authentication
+- **User ID Injection**: Authenticated user ID automatically added to requests (req.userId)
+- **Security**: JWT validation ensures only authenticated users can perform actions
+
+### User Data Flow
+1. User signs up → Supabase creates auth user with metadata
+2. User signs in → Receives JWT token
+3. Frontend sends JWT with all API requests
+4. Backend validates JWT and extracts user ID
+5. User actions (create union, event, pledge) automatically linked to authenticated user
+6. Profile page queries user's own data using authenticated user ID
+
 ## Next Steps
 1. **Database Migration**: Complete PostgreSQL setup and migrate schema
-2. **Authentication**: Add authentication system (Replit Auth or Supabase Auth)
+2. ✅ **Authentication**: Supabase Auth implemented for web and mobile
 3. **Seed Data**: Add sample unions, candidates, and events for demonstration
 4. **Mobile Testing**: Test React Native app in snack.expo.dev
 5. **Real-time Features**: Implement live updates for union power metrics

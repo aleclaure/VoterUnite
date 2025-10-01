@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert 
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { lightColors } from '../config/theme';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function AuthScreen({ navigation }: any) {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -28,13 +28,21 @@ export default function AuthScreen({ navigation }: any) {
 
     try {
       if (isSignUp) {
-        await signUp({ email, password, username, fullName, zipCode });
-        Alert.alert('Success', 'Account created! Please sign in.', [
-          { text: 'OK', onPress: () => setIsSignUp(false) }
-        ]);
+        const result = await signUp({ email, password, username, fullName, zipCode });
+        if (result.error) {
+          Alert.alert('Error', result.error.message || 'Sign up failed');
+        } else {
+          Alert.alert('Success', 'Account created! Please check your email for verification.', [
+            { text: 'OK', onPress: () => setIsSignUp(false) }
+          ]);
+        }
       } else {
-        await signIn(email, password);
-        navigation.navigate('Main');
+        const result = await signIn(email, password);
+        if (result.error) {
+          Alert.alert('Error', result.error.message || 'Sign in failed');
+        } else {
+          navigation.navigate('Main');
+        }
       }
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Authentication failed');
