@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS unions (
   category TEXT NOT NULL,
   scope TEXT NOT NULL,
   scope_value TEXT,
-  creator_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  creator_id UUID NOT NULL,
   governance_rules JSONB,
   member_count INTEGER DEFAULT 0,
   pledged_count INTEGER DEFAULT 0,
@@ -27,15 +27,28 @@ CREATE TABLE IF NOT EXISTS unions (
   created_at TIMESTAMP DEFAULT NOW() NOT NULL
 );
 
+-- Add foreign key constraint to auth.users after table creation
+ALTER TABLE unions 
+  ADD CONSTRAINT unions_creator_id_fkey 
+  FOREIGN KEY (creator_id) 
+  REFERENCES auth.users(id) 
+  ON DELETE CASCADE;
+
 -- Union Members (tracks membership and roles)
 CREATE TABLE IF NOT EXISTS union_members (
   id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::VARCHAR,
   union_id VARCHAR NOT NULL REFERENCES unions(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL,
   role TEXT DEFAULT 'member' CHECK (role IN ('member', 'organizer', 'admin')),
   joined_at TIMESTAMP DEFAULT NOW() NOT NULL,
   UNIQUE(union_id, user_id)
 );
+
+ALTER TABLE union_members 
+  ADD CONSTRAINT union_members_user_id_fkey 
+  FOREIGN KEY (user_id) 
+  REFERENCES auth.users(id) 
+  ON DELETE CASCADE;
 
 -- Union Demands
 CREATE TABLE IF NOT EXISTS union_demands (
@@ -65,7 +78,7 @@ CREATE TABLE IF NOT EXISTS candidates (
 -- Pledges (user commitments to support candidates/demands)
 CREATE TABLE IF NOT EXISTS pledges (
   id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::VARCHAR,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL,
   union_id VARCHAR NOT NULL REFERENCES unions(id) ON DELETE CASCADE,
   candidate_id VARCHAR REFERENCES candidates(id) ON DELETE SET NULL,
   is_public BOOLEAN DEFAULT false,
@@ -73,6 +86,12 @@ CREATE TABLE IF NOT EXISTS pledges (
   status TEXT DEFAULT 'active' CHECK (status IN ('active', 'withdrawn')),
   created_at TIMESTAMP DEFAULT NOW() NOT NULL
 );
+
+ALTER TABLE pledges 
+  ADD CONSTRAINT pledges_user_id_fkey 
+  FOREIGN KEY (user_id) 
+  REFERENCES auth.users(id) 
+  ON DELETE CASCADE;
 
 -- Candidate Commitments
 CREATE TABLE IF NOT EXISTS candidate_commitments (
@@ -95,28 +114,40 @@ CREATE TABLE IF NOT EXISTS events (
   date TIMESTAMP NOT NULL,
   location TEXT,
   is_virtual BOOLEAN DEFAULT false,
-  organizer_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  organizer_id UUID NOT NULL,
   union_id VARCHAR REFERENCES unions(id) ON DELETE SET NULL,
   attendee_count INTEGER DEFAULT 0,
   max_attendees INTEGER,
   created_at TIMESTAMP DEFAULT NOW() NOT NULL
 );
 
+ALTER TABLE events 
+  ADD CONSTRAINT events_organizer_id_fkey 
+  FOREIGN KEY (organizer_id) 
+  REFERENCES auth.users(id) 
+  ON DELETE CASCADE;
+
 -- Event Attendees (RSVP tracking)
 CREATE TABLE IF NOT EXISTS event_attendees (
   id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::VARCHAR,
   event_id VARCHAR NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL,
   rsvp_status TEXT DEFAULT 'going' CHECK (rsvp_status IN ('going', 'maybe', 'not_going')),
   rsvped_at TIMESTAMP DEFAULT NOW() NOT NULL,
   UNIQUE(event_id, user_id)
 );
 
+ALTER TABLE event_attendees 
+  ADD CONSTRAINT event_attendees_user_id_fkey 
+  FOREIGN KEY (user_id) 
+  REFERENCES auth.users(id) 
+  ON DELETE CASCADE;
+
 -- Ballots (for internal union voting)
 CREATE TABLE IF NOT EXISTS ballots (
   id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::VARCHAR,
   union_id VARCHAR NOT NULL REFERENCES unions(id) ON DELETE CASCADE,
-  creator_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  creator_id UUID NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
   ballot_type TEXT NOT NULL CHECK (ballot_type IN ('demand', 'endorsement', 'initiative', 'governance')),
@@ -128,23 +159,41 @@ CREATE TABLE IF NOT EXISTS ballots (
   created_at TIMESTAMP DEFAULT NOW() NOT NULL
 );
 
+ALTER TABLE ballots 
+  ADD CONSTRAINT ballots_creator_id_fkey 
+  FOREIGN KEY (creator_id) 
+  REFERENCES auth.users(id) 
+  ON DELETE CASCADE;
+
 -- Votes (individual votes on ballots)
 CREATE TABLE IF NOT EXISTS votes (
   id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::VARCHAR,
   ballot_id VARCHAR NOT NULL REFERENCES ballots(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL,
   choice JSONB,
   voted_at TIMESTAMP DEFAULT NOW() NOT NULL,
   UNIQUE(ballot_id, user_id)
 );
 
+ALTER TABLE votes 
+  ADD CONSTRAINT votes_user_id_fkey 
+  FOREIGN KEY (user_id) 
+  REFERENCES auth.users(id) 
+  ON DELETE CASCADE;
+
 -- User Badges (gamification)
 CREATE TABLE IF NOT EXISTS user_badges (
   id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::VARCHAR,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL,
   badge_type TEXT NOT NULL CHECK (badge_type IN ('first_union', 'pledged', 'organizer', 'super_voter', 'activist', 'leader')),
   earned_at TIMESTAMP DEFAULT NOW() NOT NULL
 );
+
+ALTER TABLE user_badges 
+  ADD CONSTRAINT user_badges_user_id_fkey 
+  FOREIGN KEY (user_id) 
+  REFERENCES auth.users(id) 
+  ON DELETE CASCADE;
 
 -- ====================================
 -- INDEXES FOR PERFORMANCE
