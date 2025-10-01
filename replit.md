@@ -148,6 +148,98 @@ The mobile app is located in the `mobile/` directory and includes:
 
 **Key Principle:** Both apps share the same Supabase PostgreSQL database, so data syncs automatically. Code is maintained separately but features should match across platforms for consistent user experience.
 
+## Mobile Compatibility Guardrails
+
+### ❌ Prohibited in Shared/Backend Code
+
+**No browser-specific APIs:**
+- Never use `window`, `document`, `localStorage`, `sessionStorage` directly
+- Use platform-specific abstractions or conditional imports
+- Backend code must be platform-agnostic
+
+**No web-only libraries:**
+- Avoid packages that only work in browsers
+- Always verify npm package compatibility with React Native before installation
+- Check package documentation for "React Native" or "Expo" support
+
+**No CSS/Tailwind in mobile code:**
+- Mobile uses `StyleSheet` from React Native or React Native Paper theming
+- Never import Tailwind classes, CSS files, or styled-components in `mobile/` directory
+- Keep styling completely separate between web and mobile
+
+### ✅ Required Practices
+
+**Use cross-platform packages:**
+- **Storage**: `@react-native-async-storage/async-storage` (NOT localStorage)
+- **Navigation**: React Navigation for mobile, Wouter for web (keep separate)
+- **HTTP/API**: `fetch` or `axios` (works on all platforms)
+- **State Management**: TanStack Query (works everywhere)
+- **Date/Time**: `date-fns` (cross-platform friendly)
+
+**Test on both platforms:**
+- Every new feature must work in web AND mobile
+- Backend APIs must be platform-agnostic
+- No platform-specific endpoints unless absolutely necessary
+
+**Shared backend only:**
+- All API routes in `server/` must work for both web and mobile
+- Use standard HTTP/REST principles
+- Return JSON responses (not HTML)
+
+**Keep UI completely separate:**
+- Web UI: `client/src/pages/` and `client/src/components/` (React + Tailwind)
+- Mobile UI: `mobile/src/screens/` and `mobile/src/components/` (React Native + Paper)
+- NEVER import web components in mobile or vice versa
+- Shared business logic only in `shared/` directory
+
+### 🔍 Pre-flight Checks for New Libraries
+
+Before adding any new npm package, verify ALL of these:
+1. ✅ Works with Expo SDK 50+
+2. ✅ Compatible with React Native (check npm page or GitHub issues)
+3. ✅ Has no unsupported native dependencies (or is Expo-compatible)
+4. ✅ Not browser-specific (no DOM manipulation)
+5. ✅ Actively maintained with recent updates
+
+**If installing for web only**: Add to root `package.json` but NEVER import in `mobile/`  
+**If installing for mobile only**: Add to `mobile/package.json` exclusively  
+**If installing for both**: Verify cross-platform compatibility first
+
+### 🚨 Red Flags to Watch For
+
+**STOP immediately if you see:**
+- Importing `window` or `document` in `shared/` or `mobile/` code
+- Using `localStorage` instead of AsyncStorage in mobile
+- Adding web-only packages to `mobile/package.json`
+- DOM manipulation (`.getElementById`, `.querySelector`, etc.)
+- Importing Tailwind classes in React Native components
+- CSS files in mobile directory
+- `react-router` or `wouter` in mobile code
+- Using `<div>`, `<span>`, `<img>` tags in mobile (should be `<View>`, `<Text>`, `<Image>`)
+
+### 📱 Expo Compatibility Requirements
+
+**All mobile code must:**
+- Use Expo SDK 50+ compatible packages
+- Avoid packages requiring custom native code (unless Expo-supported)
+- Work on both iOS and Android
+- Be testable on snack.expo.dev
+- Follow React Native best practices
+
+**Safe Expo packages:**
+- `expo-*` packages (expo-router, expo-linear-gradient, etc.)
+- `@react-navigation/*`
+- `@react-native-async-storage/async-storage`
+- `react-native-paper`
+- `@supabase/supabase-js`
+
+### ✅ Already Protected
+
+- ✅ Project structure separates web (`client/`) and mobile (`mobile/`)
+- ✅ Backend is shared via Supabase (platform-agnostic)
+- ✅ Multi-platform development guidelines established
+- ✅ Mobile app uses Expo SDK 50 with proper dependencies
+
 ## Current Status
 
 ### Supabase Integration
