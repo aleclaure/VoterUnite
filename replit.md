@@ -12,6 +12,97 @@ A platform designed to empower collective political organizing through issue-bas
 - **Multi-Platform Development Guidelines:** Build feature parity between web and mobile apps. Whenever you add or modify a feature, implement it in both.
 - **Mobile Compatibility Guardrails:** No browser-specific APIs in shared/backend code, no web-only libraries, no CSS/Tailwind in mobile code. Use cross-platform packages, test on both platforms, and keep UI completely separate. All mobile code must use Expo SDK 50+ compatible packages and work on both iOS and Android.
 
+## Feature Development Checklist
+
+Every new feature MUST follow this complete implementation checklist:
+
+### 1. Database & Schema
+- ✅ Create new table(s) in Supabase PostgreSQL
+- ✅ Link all records to authenticated user via `author_id` or `user_id` (UUID from `auth.users`)
+- ✅ Include proper foreign keys with `ON DELETE CASCADE`
+- ✅ Create Row Level Security (RLS) policies so users can only manage their own data
+- ✅ Add indexes for performance on frequently queried columns
+- ✅ Provide complete SQL code for Supabase SQL Editor
+
+### 2. Authentication & Authorization
+- ✅ Require authentication for all creating/editing operations
+- ✅ Auto-link all new records to `req.userId` (backend) or `auth.uid()` (database)
+- ✅ Use existing Supabase Auth JWT tokens via `Authorization: Bearer` headers
+- ✅ Implement `requireAuth` middleware on all protected API routes
+- ✅ Validate user ownership before update/delete operations
+
+### 3. Multi-Platform Implementation
+- ✅ **Web UI**: Build in `client/src/pages/` using React + Tailwind + shadcn/ui
+- ✅ **Mobile UI**: Build in `mobile/src/screens/` using React Native + Expo + React Native Paper
+- ✅ Both platforms share the same Supabase PostgreSQL backend
+- ✅ Both platforms use the same API routes
+- ✅ Maintain feature parity between web and mobile
+- ✅ Keep UI components completely separate (no shared UI code)
+
+### 4. Data Persistence & Backend
+- ✅ Save to Supabase PostgreSQL (never use in-memory storage)
+- ✅ Update `shared/schema.ts` with Drizzle table definitions
+- ✅ Add storage methods to `DbStorage` class in `server/storage.ts`
+- ✅ Create API routes in `server/routes.ts` with `requireAuth` middleware
+- ✅ Use existing queryClient setup for frontend data fetching
+
+### 5. Security & Validation
+- ✅ Create RLS policies for data access control:
+  - Users can only edit/delete their own content
+  - Public content viewable by everyone (if applicable)
+  - Validate union/group membership where required
+- ✅ Use Zod schemas for request validation (`drizzle-zod`)
+- ✅ Never expose sensitive user data
+- ✅ Validate all inputs on both client and server
+
+### 6. Code Quality
+- ✅ Add `data-testid` attributes to all interactive elements
+- ✅ Implement proper error handling with user-friendly messages
+- ✅ Show loading states during async operations
+- ✅ Invalidate React Query cache after mutations
+- ✅ Use proper TypeScript types from schema
+
+### Example SQL Template for New Features:
+```sql
+-- Create table
+CREATE TABLE IF NOT EXISTS feature_name (
+  id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::VARCHAR,
+  user_id UUID NOT NULL,
+  -- other columns
+  created_at TIMESTAMP DEFAULT NOW() NOT NULL
+);
+
+-- Add foreign key to auth.users
+ALTER TABLE feature_name 
+  ADD CONSTRAINT feature_name_user_id_fkey 
+  FOREIGN KEY (user_id) 
+  REFERENCES auth.users(id) 
+  ON DELETE CASCADE;
+
+-- Enable RLS
+ALTER TABLE feature_name ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies
+CREATE POLICY "Users can view their own records"
+  ON feature_name FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create records"
+  ON feature_name FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own records"
+  ON feature_name FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own records"
+  ON feature_name FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- Add indexes
+CREATE INDEX IF NOT EXISTS idx_feature_name_user ON feature_name(user_id);
+```
+
 ## System Architecture
 
 The platform uses a monorepo structure with shared components and distinct web and mobile frontends.
