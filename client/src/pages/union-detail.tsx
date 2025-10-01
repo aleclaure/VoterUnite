@@ -8,11 +8,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { MessageSquare, Plus, Hash, ArrowUp, ArrowDown, MessageCircle } from "lucide-react";
+import { MessageSquare, Plus, Hash, ArrowUp, ArrowDown, MessageCircle, Mic, Video } from "lucide-react";
 
 export default function UnionDetail() {
   const [, params] = useRoute("/unions/:id");
@@ -21,6 +23,7 @@ export default function UnionDetail() {
   const { user } = useAuth();
   const [selectedChannel, setSelectedChannel] = useState<string | null>(null);
   const [newChannelName, setNewChannelName] = useState("");
+  const [newChannelType, setNewChannelType] = useState<string>("text");
   const [newPostTitle, setNewPostTitle] = useState("");
   const [newPostContent, setNewPostContent] = useState("");
   const [isChannelDialogOpen, setIsChannelDialogOpen] = useState(false);
@@ -52,7 +55,7 @@ export default function UnionDetail() {
   });
 
   const createChannelMutation = useMutation({
-    mutationFn: async (data: { name: string; description?: string }) => {
+    mutationFn: async (data: { name: string; channelType?: string; description?: string }) => {
       return await apiRequest(`/api/unions/${unionId}/channels`, {
         method: "POST",
         body: data,
@@ -61,6 +64,7 @@ export default function UnionDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/unions", unionId, "channels"] });
       setNewChannelName("");
+      setNewChannelType("text");
       setIsChannelDialogOpen(false);
       toast({ title: "Success", description: "Channel created!" });
     },
@@ -248,14 +252,46 @@ export default function UnionDetail() {
                               <DialogTitle>Create Channel</DialogTitle>
                             </DialogHeader>
                             <div className="space-y-4">
-                              <Input
-                                placeholder="Channel name"
-                                value={newChannelName}
-                                onChange={(e) => setNewChannelName(e.target.value)}
-                                data-testid="input-channel-name"
-                              />
+                              <div className="space-y-2">
+                                <Label htmlFor="channel-type">Channel Type</Label>
+                                <Select value={newChannelType} onValueChange={setNewChannelType}>
+                                  <SelectTrigger id="channel-type" data-testid="select-channel-type">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="text">
+                                      <div className="flex items-center gap-2">
+                                        <Hash className="h-4 w-4" />
+                                        <span>Text Channel</span>
+                                      </div>
+                                    </SelectItem>
+                                    <SelectItem value="voice">
+                                      <div className="flex items-center gap-2">
+                                        <Mic className="h-4 w-4" />
+                                        <span>Voice Room</span>
+                                      </div>
+                                    </SelectItem>
+                                    <SelectItem value="video">
+                                      <div className="flex items-center gap-2">
+                                        <Video className="h-4 w-4" />
+                                        <span>Video Room</span>
+                                      </div>
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor="channel-name">Channel Name</Label>
+                                <Input
+                                  id="channel-name"
+                                  placeholder="e.g., general, strategy-call"
+                                  value={newChannelName}
+                                  onChange={(e) => setNewChannelName(e.target.value)}
+                                  data-testid="input-channel-name"
+                                />
+                              </div>
                               <Button
-                                onClick={() => createChannelMutation.mutate({ name: newChannelName })}
+                                onClick={() => createChannelMutation.mutate({ name: newChannelName, channelType: newChannelType })}
                                 disabled={!newChannelName || createChannelMutation.isPending}
                                 className="w-full"
                                 data-testid="button-submit-channel"
@@ -271,23 +307,26 @@ export default function UnionDetail() {
                   <CardContent>
                     <ScrollArea className="h-[500px]">
                       <div className="space-y-1">
-                        {channels.map((channel: any) => (
-                          <button
-                            key={channel.id}
-                            onClick={() => setSelectedChannel(channel.id)}
-                            className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
-                              selectedChannel === channel.id
-                                ? "bg-primary text-primary-foreground"
-                                : "hover:bg-muted"
-                            }`}
-                            data-testid={`channel-${channel.id}`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <Hash className="h-4 w-4" />
-                              {channel.name}
-                            </div>
-                          </button>
-                        ))}
+                        {channels.map((channel: any) => {
+                          const ChannelIcon = channel.channelType === 'voice' ? Mic : channel.channelType === 'video' ? Video : Hash;
+                          return (
+                            <button
+                              key={channel.id}
+                              onClick={() => setSelectedChannel(channel.id)}
+                              className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                                selectedChannel === channel.id
+                                  ? "bg-primary text-primary-foreground"
+                                  : "hover:bg-muted"
+                              }`}
+                              data-testid={`channel-${channel.id}`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <ChannelIcon className="h-4 w-4" />
+                                {channel.name}
+                              </div>
+                            </button>
+                          );
+                        })}
                         {channels.length === 0 && (
                           <p className="text-sm text-muted-foreground px-3">No channels yet</p>
                         )}
