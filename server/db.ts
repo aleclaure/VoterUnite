@@ -11,16 +11,19 @@ let db: any = null;
 if (process.env.SUPABASE_URL && process.env.SUPABASE_DB_PASSWORD) {
   try {
     const supabaseRef = process.env.SUPABASE_URL.replace('https://', '').replace('.supabase.co', '');
-    const connectionString = `postgresql://postgres.${supabaseRef}:${process.env.SUPABASE_DB_PASSWORD}@aws-0-us-east-1.pooler.supabase.com:6543/postgres`;
+    const password = encodeURIComponent(process.env.SUPABASE_DB_PASSWORD);
+    const connectionString = `postgresql://postgres.${supabaseRef}:${password}@aws-0-us-east-1.pooler.supabase.com:6543/postgres`;
     
     const client = postgres(connectionString, {
-      prepare: false
+      prepare: false,
+      ssl: 'require'
     });
     
     db = drizzle(client, { schema });
     console.log('✓ Supabase PostgreSQL connection initialized');
   } catch (error) {
-    console.warn('⚠ Failed to initialize Supabase PostgreSQL, using MemStorage');
+    console.error('⚠ Failed to initialize Supabase PostgreSQL:', error);
+    console.warn('⚠ Using MemStorage as fallback');
   }
 }
 
