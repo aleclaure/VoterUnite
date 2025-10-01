@@ -1,8 +1,11 @@
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import { LogOut, User } from "lucide-react";
 
 export default function Navbar() {
   const [location] = useLocation();
+  const { user, signOut, loading } = useAuth();
 
   const navItems = [
     { href: "/unions", label: "Unions" },
@@ -39,12 +42,39 @@ export default function Navbar() {
             </div>
           </div>
           <div className="flex items-center space-x-4">
-            <Link href="/profile">
-              <Button variant="ghost" className="hidden sm:flex">Sign In</Button>
-            </Link>
-            <Link href="/unions">
-              <Button>Get Started</Button>
-            </Link>
+            {!loading && (
+              <>
+                {user ? (
+                  <>
+                    <Link href="/profile">
+                      <Button variant="ghost" className="hidden sm:flex" data-testid="button-profile">
+                        <User className="w-4 h-4 mr-2" />
+                        Profile
+                      </Button>
+                    </Link>
+                    <Button
+                      variant="outline"
+                      onClick={() => signOut()}
+                      data-testid="button-signout"
+                    >
+                      <LogOut className="w-4 h-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Sign Out</span>
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Link href="/sign-in">
+                      <Button variant="ghost" className="hidden sm:flex" data-testid="button-signin-nav">
+                        Sign In
+                      </Button>
+                    </Link>
+                    <Link href="/sign-up">
+                      <Button data-testid="button-signup-nav">Get Started</Button>
+                    </Link>
+                  </>
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>
