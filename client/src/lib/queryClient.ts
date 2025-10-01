@@ -20,10 +20,15 @@ async function getAuthHeaders(): Promise<HeadersInit> {
 }
 
 export async function apiRequest(
-  method: string,
   url: string,
-  data?: unknown | undefined,
+  options?: {
+    method?: string;
+    body?: unknown;
+  }
 ): Promise<Response> {
+  const method = options?.method || "GET";
+  const data = options?.body;
+  
   const authHeaders = await getAuthHeaders();
   const headers = {
     ...authHeaders,
