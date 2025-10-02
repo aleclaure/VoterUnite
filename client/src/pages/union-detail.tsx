@@ -101,25 +101,16 @@ export default function UnionDetail() {
 
   const joinRoomMutation = useMutation({
     mutationFn: async ({ channelId, channelType }: { channelId: string; channelType: 'voice' | 'video' }) => {
-      console.log('🚀 MUTATION FIRED - Joining room:', channelId, channelType);
-      try {
-        const data = await apiRequest(`/api/channels/${channelId}/session`, {
-          method: "POST",
-          body: {},
-        });
-        console.log('📥 API Response received:', data);
-        return { ...data, channelType, channelId };
-      } catch (error: any) {
-        console.error('❌ Mutation error:', error);
-        throw error;
-      }
+      const data = await apiRequest(`/api/channels/${channelId}/session`, {
+        method: "POST",
+        body: {},
+      });
+      return { ...data, channelType, channelId };
     },
     onSuccess: (data: any) => {
-      console.log('Join room response:', JSON.stringify(data));
-      
       if (!data.session?.roomUrl) {
-        alert(`ERROR: No roomUrl in response! Data: ${JSON.stringify(data)}`);
         setJoiningChannelId(null);
+        toast({ title: "Error", description: "Failed to get room URL", variant: "destructive" });
         return;
       }
       

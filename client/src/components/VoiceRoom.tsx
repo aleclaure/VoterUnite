@@ -110,6 +110,12 @@ function VoiceRoomContent({ onLeave, connectionState, error }: VoiceRoomContentP
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+          <p className="text-sm text-blue-700 dark:text-blue-300">
+            💡 If you are having trouble connecting to the call, refresh the webpage or restart the app and rejoin the call granting voice and/or video permissions again
+          </p>
+        </div>
+
         {error && (
           <div className="p-3 bg-destructive/10 border border-destructive rounded-lg">
             <p className="text-sm text-destructive">{error}</p>
@@ -193,9 +199,7 @@ export default function VoiceRoom({ roomUrl, onLeave }: VoiceRoomProps) {
   useEffect(() => {
     const initializeDaily = async () => {
       try {
-        console.log('Requesting microphone permission...');
         await navigator.mediaDevices.getUserMedia({ audio: true });
-        console.log('Microphone permission granted');
         
         const DailyIframe = (await import('@daily-co/daily-js')).default;
         
@@ -206,7 +210,6 @@ export default function VoiceRoom({ roomUrl, onLeave }: VoiceRoomProps) {
 
         // Attach event listeners BEFORE joining
         daily.on('joined-meeting', () => {
-          console.log('Daily: joined meeting!');
           setConnectionState('connected');
           setError(null);
         });
@@ -218,23 +221,17 @@ export default function VoiceRoom({ roomUrl, onLeave }: VoiceRoomProps) {
         });
 
         daily.on('left-meeting', () => {
-          console.log('Daily: left meeting');
           setConnectionState('connecting');
         });
 
         setDailyInstance(daily);
 
-        console.log('Joining Daily room:', roomUrl);
-        const joinResult = await daily.join({
+        await daily.join({
           url: roomUrl,
           userName: user?.email?.split('@')[0] || 'Guest',
         });
-        console.log('Join result:', joinResult);
       } catch (err: any) {
         console.error('Failed to initialize/join room:', err);
-        console.error('Error name:', err.name);
-        console.error('Error message:', err.message);
-        console.error('Error stack:', err.stack);
         
         setConnectionState('error');
         setError(

@@ -103,6 +103,12 @@ function VideoRoomContent({ onLeave, connectionState, error }: VideoRoomContentP
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-4">
+      <Card className="p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
+        <p className="text-sm text-blue-700 dark:text-blue-300">
+          💡 If you are having trouble connecting to the call, refresh the webpage or restart the app and rejoin the call granting voice and/or video permissions again
+        </p>
+      </Card>
+
       {error && (
         <Card className="p-4 bg-destructive/10 border-destructive">
           <p className="text-sm text-destructive">{error}</p>
