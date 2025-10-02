@@ -29,14 +29,14 @@ function VideoTile({ participantId, isLocal = false }: { participantId: string; 
       return;
     }
 
-    // Handle video track rendering based on state
+    // Handle video track rendering - retain last good track during transitions
     if (videoState?.isOff) {
-      // Video is explicitly off
+      // Video is explicitly off - clear it
       console.log(`[VideoTile ${participantId}] Video is off, clearing source`);
       videoElement.srcObject = null;
     } else if (videoState?.persistentTrack) {
-      // We have a track - try to play it regardless of state
-      console.log(`[VideoTile ${participantId}] Setting up video stream with track (state: ${videoState.state})`);
+      // We have a persistent track - update the video
+      console.log(`[VideoTile ${participantId}] Setting up video stream with persistent track (state: ${videoState.state})`);
       const stream = new MediaStream([videoState.persistentTrack]);
       videoElement.srcObject = stream;
       
@@ -53,19 +53,20 @@ function VideoTile({ participantId, isLocal = false }: { participantId: string; 
       videoElement.play().catch(err => {
         console.error(`[VideoTile ${participantId}] Error playing video:`, err);
       });
-    } else {
-      // No track available
-      console.log(`[VideoTile ${participantId}] No track available yet`);
-      videoElement.srcObject = null;
     }
+    // NOTE: Don't clear video when track is temporarily null - retain last frame during transitions
+  }, [videoState?.persistentTrack, videoState?.track, videoState?.isOff, participantId, isLocal]);
 
-    // Cleanup function - only clear srcObject, let Daily manage tracks
+  // Cleanup only on component unmount
+  useEffect(() => {
     return () => {
-      if (videoElement.srcObject) {
+      const videoElement = videoRef.current;
+      if (videoElement?.srcObject) {
+        console.log(`[VideoTile ${participantId}] Unmounting: clearing video source`);
         videoElement.srcObject = null;
       }
     };
-  }, [videoState?.state, videoState?.persistentTrack, videoState?.track, videoState?.isOff, participantId, isLocal]);
+  }, [participantId]);
 
   return (
     <Card
