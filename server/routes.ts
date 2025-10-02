@@ -405,37 +405,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Voice/Video Sessions
   app.post("/api/channels/:channelId/session", requireAuth, async (req, res) => {
     try {
+      console.log('📞 JOIN SESSION REQUEST - Channel:', req.params.channelId, 'User:', req.userId);
       const { channelId } = req.params;
 
+      console.log('1️⃣ Fetching channel...');
       const channel = await storage.getChannel(channelId);
       if (!channel) {
+        console.log('❌ Channel not found');
         return res.status(404).json({ message: "Channel not found" });
       }
+      console.log('✅ Channel found:', channel.name, channel.channelType);
 
       if (channel.channelType !== 'voice' && channel.channelType !== 'video') {
+        console.log('❌ Invalid channel type');
         return res.status(400).json({ message: "Channel type must be 'voice' or 'video'" });
       }
 
+      console.log('2️⃣ Checking membership...');
       const membership = await storage.getUnionMembership(channel.unionId, req.userId!);
       if (!membership) {
+        console.log('❌ User not a member');
         return res.status(403).json({ message: "You must be a union member to join this channel" });
       }
+      console.log('✅ Membership confirmed');
 
+      console.log('3️⃣ Checking for existing session...');
       const existingSession = await storage.getActiveSession(channelId);
       if (existingSession) {
+        console.log('✅ Found existing session:', existingSession.id);
         const participant = await storage.joinSession(existingSession.id, req.userId!);
-        console.log('Returning existing session:', JSON.stringify({ session: existingSession, participant }, null, 2));
+        console.log('✅ Returning existing session:', JSON.stringify({ session: existingSession, participant }, null, 2));
         return res.json({ session: existingSession, participant });
       }
+      console.log('ℹ️  No existing session, creating new room...');
 
+      console.log('4️⃣ Creating Daily.co room...');
       const { roomUrl, roomName, sessionToken } = await createDailyRoom(channelId, channel.name, channel.channelType);
+      console.log('✅ Daily room created:', roomUrl);
+      
+      console.log('5️⃣ Saving session to database...');
       const session = await storage.createSession(channelId, sessionToken, roomUrl, roomName);
+      console.log('✅ Session saved:', session.id);
+      
+      console.log('6️⃣ Adding participant...');
       const participant = await storage.joinSession(session.id, req.userId!);
+      console.log('✅ Participant added');
 
-      console.log('Returning new session:', JSON.stringify({ session, participant }, null, 2));
+      console.log('✅ Returning new session:', JSON.stringify({ session, participant }, null, 2));
       res.json({ session, participant });
     } catch (error: any) {
-      console.error("Create/join session error:", error);
+      console.error("❌ Create/join session error:", error);
       res.status(500).json({ message: error.message });
     }
   });
