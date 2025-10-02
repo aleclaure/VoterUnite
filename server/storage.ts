@@ -14,7 +14,9 @@ import {
   type UnionChannel, type InsertUnionChannel,
   type DiscussionPost, type InsertDiscussionPost,
   type PostComment, type InsertPostComment,
-  type PostVote, type InsertPostVote
+  type PostVote, type InsertPostVote,
+  type ChannelSession, type InsertChannelSession,
+  type SessionParticipant, type InsertSessionParticipant
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -83,6 +85,7 @@ export interface IStorage {
   
   // Discussion System
   // Channels
+  getChannel(id: string): Promise<UnionChannel | undefined>;
   getUnionChannels(unionId: string): Promise<UnionChannel[]>;
   createChannel(channel: InsertUnionChannel): Promise<UnionChannel>;
   deleteChannel(id: string): Promise<void>;
@@ -105,6 +108,14 @@ export interface IStorage {
   getUserVoteForComment(userId: string, commentId: string): Promise<PostVote | undefined>;
   votePost(vote: InsertPostVote): Promise<PostVote>;
   deleteVote(id: string): Promise<void>;
+  
+  // Voice/Video Sessions
+  createSession(channelId: string, sessionToken: string, roomUrl: string, roomName: string): Promise<ChannelSession>;
+  getActiveSession(channelId: string): Promise<ChannelSession | null>;
+  endSession(sessionId: string): Promise<void>;
+  joinSession(sessionId: string, userId: string): Promise<SessionParticipant>;
+  leaveSession(participantId: string): Promise<void>;
+  getSessionParticipants(sessionId: string): Promise<SessionParticipant[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -124,6 +135,8 @@ export class MemStorage implements IStorage {
   private discussionPosts: Map<string, DiscussionPost> = new Map();
   private postComments: Map<string, PostComment> = new Map();
   private postVotes: Map<string, PostVote> = new Map();
+  private channelSessions: Map<string, ChannelSession> = new Map();
+  private sessionParticipants: Map<string, SessionParticipant> = new Map();
 
   // Users
   async getUser(id: string): Promise<User | undefined> {
@@ -451,6 +464,10 @@ export class MemStorage implements IStorage {
   }
 
   // Discussion System - Channels
+  async getChannel(id: string): Promise<UnionChannel | undefined> {
+    return this.unionChannels.get(id);
+  }
+
   async getUnionChannels(unionId: string): Promise<UnionChannel[]> {
     return Array.from(this.unionChannels.values()).filter(c => c.unionId === unionId);
   }
@@ -608,6 +625,75 @@ export class MemStorage implements IStorage {
       }
     }
     this.postVotes.delete(id);
+  }
+
+  // Voice/Video Sessions
+  async createSession(channelId: string, sessionToken: string, roomUrl: string, roomName: string): Promise<ChannelSession> {
+    const session: ChannelSession = {
+      id: randomUUID(),
+      channelId,
+      sessionToken,
+      roomUrl,
+      roomName,
+      startedAt: new Date(),
+      endedAt: null,
+      isActive: true
+    };
+    this.channelSessions.set(session.id, session);
+    return session;
+  }
+
+  async getActiveSession(channelId: string): Promise<ChannelSession | null> {
+    const sessions = Array.from(this.channelSessions.values());
+    const activeSession = sessions.find(s => s.channelId === channelId && s.isActive);
+    return activeSession || null;
+  }
+
+  async endSession(sessionId: string): Promise<void> {
+    const session = this.channelSessions.get(sessionId);
+    if (session) {
+      session.isActive = false;
+      session.endedAt = new Date();
+      this.channelSessions.set(sessionId, session);
+      
+      const participants = Array.from(this.sessionParticipants.values())
+        .filter(p => p.sessionId === sessionId && p.isActive);
+      
+      participants.forEach(p => {
+        p.isActive = false;
+        p.leftAt = new Date();
+        this.sessionParticipants.set(p.id, p);
+      });
+    }
+  }
+
+  async joinSession(sessionId: string, userId: string): Promise<SessionParticipant> {
+    const participant: SessionParticipant = {
+      id: randomUUID(),
+      sessionId,
+      userId,
+      joinedAt: new Date(),
+      leftAt: null,
+      isActive: true,
+      isMuted: false,
+      isVideoOn: false
+    };
+    this.sessionParticipants.set(participant.id, participant);
+    return participant;
+  }
+
+  async leaveSession(participantId: string): Promise<void> {
+    const participant = this.sessionParticipants.get(participantId);
+    if (participant) {
+      participant.isActive = false;
+      participant.leftAt = new Date();
+      this.sessionParticipants.set(participantId, participant);
+    }
+  }
+
+  async getSessionParticipants(sessionId: string): Promise<SessionParticipant[]> {
+    return Array.from(this.sessionParticipants.values())
+      .filter(p => p.sessionId === sessionId && p.isActive);
   }
 }
 
@@ -878,6 +964,13 @@ export class DbStorage implements IStorage {
   }
 
   // Discussion System - Channels
+  async getChannel(id: string): Promise<UnionChannel | undefined> {
+    const result = await db.select().from(schema.unionChannels)
+      .where(eq(schema.unionChannels.id, id))
+      .limit(1);
+    return result[0];
+  }
+
   async getUnionChannels(unionId: string): Promise<UnionChannel[]> {
     return await db.select().from(schema.unionChannels)
       .where(eq(schema.unionChannels.unionId, unionId))
@@ -975,6 +1068,71 @@ export class DbStorage implements IStorage {
 
   async deleteVote(id: string): Promise<void> {
     await db.delete(schema.postVotes).where(eq(schema.postVotes.id, id));
+  }
+
+  // Voice/Video Sessions
+  async createSession(channelId: string, sessionToken: string, roomUrl: string, roomName: string): Promise<ChannelSession> {
+    const result = await db.insert(schema.channelSessions).values({
+      channelId,
+      sessionToken,
+      roomUrl,
+      roomName
+    }).returning();
+    return result[0];
+  }
+
+  async getActiveSession(channelId: string): Promise<ChannelSession | null> {
+    const result = await db.select().from(schema.channelSessions)
+      .where(and(
+        eq(schema.channelSessions.channelId, channelId),
+        eq(schema.channelSessions.isActive, true)
+      ))
+      .limit(1);
+    return result[0] || null;
+  }
+
+  async endSession(sessionId: string): Promise<void> {
+    await db.update(schema.channelSessions)
+      .set({ 
+        isActive: false, 
+        endedAt: new Date() 
+      })
+      .where(eq(schema.channelSessions.id, sessionId));
+    
+    await db.update(schema.sessionParticipants)
+      .set({ 
+        isActive: false, 
+        leftAt: new Date() 
+      })
+      .where(and(
+        eq(schema.sessionParticipants.sessionId, sessionId),
+        eq(schema.sessionParticipants.isActive, true)
+      ));
+  }
+
+  async joinSession(sessionId: string, userId: string): Promise<SessionParticipant> {
+    const result = await db.insert(schema.sessionParticipants).values({
+      sessionId,
+      userId
+    }).returning();
+    return result[0];
+  }
+
+  async leaveSession(participantId: string): Promise<void> {
+    await db.update(schema.sessionParticipants)
+      .set({ 
+        isActive: false, 
+        leftAt: new Date() 
+      })
+      .where(eq(schema.sessionParticipants.id, participantId));
+  }
+
+  async getSessionParticipants(sessionId: string): Promise<SessionParticipant[]> {
+    return await db.select().from(schema.sessionParticipants)
+      .where(and(
+        eq(schema.sessionParticipants.sessionId, sessionId),
+        eq(schema.sessionParticipants.isActive, true)
+      ));
   }
 }
 

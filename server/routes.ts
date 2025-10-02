@@ -9,6 +9,7 @@ import {
   insertBallotSchema, insertVoteSchema, insertUserBadgeSchema,
   insertUnionChannelSchema, insertDiscussionPostSchema, insertPostCommentSchema, insertPostVoteSchema
 } from "@shared/schema";
+import { createDailyRoom } from "./daily";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
@@ -398,6 +399,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: "Vote removed" });
     } catch (error: any) {
       res.status(400).json({ message: error.message });
+    }
+  });
+
+  // Voice/Video Sessions
+  app.post("/api/channels/:channelId/session", requireAuth, async (req, res) => {
+    try {
+      const { channelId } = req.params;
+      const { channelName, channelType } = req.body;
+
+      if (!channelName || !channelType) {
+        return res.status(400).json({ message: "channelName and channelType are required" });
+      }
+
+      if (channelType !== 'voice' && channelType !== 'video') {
+        return res.status(400).json({ message: "channelType must be 'voice' or 'video'" });
+      }
+
+      const existingSession = await storage.getActiveSession(channelId);
+      if (existingSession) {
+        const participant = await storage.joinSession(existingSession.id, req.userId!);
+        return res.json({ session: existingSession, participant });
+      }
+
+      const { roomUrl, roomName, sessionToken } = await createDailyRoom(channelId, channelName, channelType);
+      const session = await storage.createSession(channelId, sessionToken, roomUrl, roomName);
+      const participant = await storage.joinSession(session.id, req.userId!);
+
+      res.json({ session, participant });
+    } catch (error: any) {
+      console.error("Create/join session error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/channels/:channelId/session", async (req, res) => {
+    try {
+      const { channelId } = req.params;
+      const session = await storage.getActiveSession(channelId);
+      res.json(session);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/channels/:channelId/session", requireAuth, async (req, res) => {
+    try {
+      const { channelId } = req.params;
+      const session = await storage.getActiveSession(channelId);
+      
+      if (!session) {
+        return res.status(404).json({ message: "No active session found" });
+      }
+
+      const channel = await storage.getUnionChannels(channelId);
+      if (channel.length === 0) {
+        return res.status(404).json({ message: "Channel not found" });
+      }
+
+      if (channel[0].createdBy !== req.userId) {
+        return res.status(403).json({ message: "Only channel creator can end the session" });
+      }
+
+      await storage.endSession(session.id);
+      res.json({ message: "Session ended" });
+    } catch (error: any) {
+      console.error("End session error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/sessions/:sessionId/join", requireAuth, async (req, res) => {
+    try {
+      const { sessionId } = req.params;
+      const participant = await storage.joinSession(sessionId, req.userId!);
+      res.json(participant);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/sessions/:sessionId/leave", requireAuth, async (req, res) => {
+    try {
+      const { sessionId } = req.params;
+      const participants = await storage.getSessionParticipants(sessionId);
+      const participant = participants.find(p => p.userId === req.userId && p.isActive);
+      
+      if (!participant) {
+        return res.status(404).json({ message: "Participant not found in session" });
+      }
+
+      await storage.leaveSession(participant.id);
+      res.json({ message: "Left session" });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/sessions/:sessionId/participants", async (req, res) => {
+    try {
+      const { sessionId } = req.params;
+      const participants = await storage.getSessionParticipants(sessionId);
+      res.json(participants);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
     }
   });
 
