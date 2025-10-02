@@ -696,7 +696,7 @@ export class DbStorage implements IStorage {
 
   async getUnionMembership(unionId: string, userId: string): Promise<UnionMember | undefined> {
     const result = await db.select().from(schema.unionMembers)
-      .where(sql`${schema.unionMembers.unionId} = ${unionId} AND ${schema.unionMembers.userId} = ${userId}`);
+      .where(and(eq(schema.unionMembers.unionId, unionId), eq(schema.unionMembers.userId, userId)));
     return result[0];
   }
 
