@@ -226,7 +226,11 @@ export default function VoiceRoom({ roomUrl, onLeave }: VoiceRoomProps) {
           videoSource: false,
         });
 
+        // Set instance first so event listeners can be attached
         setDailyInstance(daily);
+
+        // Wait a tick for React to update and listeners to attach
+        await new Promise(resolve => setTimeout(resolve, 100));
 
         console.log('Joining Daily room:', roomUrl);
         const joinResult = await daily.join({

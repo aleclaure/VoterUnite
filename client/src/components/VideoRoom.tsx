@@ -254,7 +254,11 @@ export default function VideoRoom({ roomUrl, onLeave }: VideoRoomProps) {
         daily.on('joined-meeting', () => console.log('Daily: joined meeting!'));
         daily.on('error', (e) => console.error('Daily error:', e));
 
+        // Set instance first so event listeners can be attached
         setDailyInstance(daily);
+
+        // Wait a tick for React to update and listeners to attach
+        await new Promise(resolve => setTimeout(resolve, 100));
 
         console.log('Joining Daily room:', roomUrl);
         const joinResult = await daily.join({
