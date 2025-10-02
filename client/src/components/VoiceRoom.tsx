@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Mic, MicOff, PhoneOff } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
+import { Mic, MicOff, PhoneOff, Volume2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface VoiceRoomProps {
@@ -12,7 +13,13 @@ interface VoiceRoomProps {
   onLeave: () => void;
 }
 
-function ParticipantItem({ participantId }: { participantId: string }) {
+interface ParticipantItemProps {
+  participantId: string;
+  onVolumeChange: (participantId: string, volume: number) => void;
+  volume: number;
+}
+
+function ParticipantItem({ participantId, onVolumeChange, volume }: ParticipantItemProps) {
   const audioTrack = useAudioTrack(participantId);
   const [audioLevel, setAudioLevel] = useState(0);
 
@@ -30,21 +37,35 @@ function ParticipantItem({ participantId }: { participantId: string }) {
   return (
     <div
       data-testid={`text-participant-${participantId}`}
-      className="flex items-center justify-between p-3 rounded-lg bg-secondary/50"
+      className="flex flex-col gap-2 p-3 rounded-lg bg-secondary/50"
     >
-      <span className="text-sm font-medium">{participantId.substring(0, 8)}</span>
-      <div className="flex items-center gap-2">
-        <div className="w-12 h-2 bg-muted rounded-full overflow-hidden">
-          <div
-            className="h-full bg-green-500 transition-all duration-150"
-            style={{ width: `${Math.min(audioLevel * 100, 100)}%` }}
-          />
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium">{participantId.substring(0, 8)}</span>
+        <div className="flex items-center gap-2">
+          <div className="w-12 h-2 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full bg-green-500 transition-all duration-150"
+              style={{ width: `${Math.min(audioLevel * 100, 100)}%` }}
+            />
+          </div>
+          {audioTrack?.isOff ? (
+            <MicOff className="w-4 h-4 text-muted-foreground" />
+          ) : (
+            <Mic className="w-4 h-4 text-green-500" />
+          )}
         </div>
-        {audioTrack?.isOff ? (
-          <MicOff className="w-4 h-4 text-muted-foreground" />
-        ) : (
-          <Mic className="w-4 h-4 text-green-500" />
-        )}
+      </div>
+      <div className="flex items-center gap-2">
+        <Volume2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+        <Slider
+          value={[volume]}
+          onValueChange={(values) => onVolumeChange(participantId, values[0])}
+          max={100}
+          step={1}
+          className="flex-1"
+          data-testid={`slider-volume-${participantId}`}
+        />
+        <span className="text-xs text-muted-foreground w-8 text-right">{volume}%</span>
       </div>
     </div>
   );
@@ -62,6 +83,7 @@ function VoiceRoomContent({ onLeave, connectionState, error }: VoiceRoomContentP
   const participantIds = useParticipantIds();
   const localParticipant = useLocalParticipant();
   const [isMuted, setIsMuted] = useState(false);
+  const [participantVolumes, setParticipantVolumes] = useState<Record<string, number>>({});
 
   const toggleMute = () => {
     if (daily) {
@@ -69,6 +91,53 @@ function VoiceRoomContent({ onLeave, connectionState, error }: VoiceRoomContentP
       setIsMuted(!isMuted);
     }
   };
+
+  const handleVolumeChange = (participantId: string, volume: number) => {
+    if (daily) {
+      // Convert 0-100 to 0-1 for Daily API
+      const normalizedVolume = volume / 100;
+      
+      try {
+        // Use Daily's setParticipantVolume to actually adjust audio output
+        // Type cast needed as Daily.co types may not include this method
+        const dailyAny = daily as any;
+        if (dailyAny.setParticipantVolume) {
+          dailyAny.setParticipantVolume(participantId, normalizedVolume);
+        }
+        
+        // Update UI state
+        setParticipantVolumes(prev => ({
+          ...prev,
+          [participantId]: volume
+        }));
+      } catch (err) {
+        console.error('Failed to update participant volume:', err);
+      }
+    }
+  };
+
+  // Initialize default volumes for new participants
+  useEffect(() => {
+    participantIds.forEach(id => {
+      if (!(id in participantVolumes)) {
+        setParticipantVolumes(prev => ({
+          ...prev,
+          [id]: 100 // Default volume 100%
+        }));
+      }
+    });
+
+    // Clean up volumes for participants who left
+    setParticipantVolumes(prev => {
+      const updated = { ...prev };
+      Object.keys(updated).forEach(id => {
+        if (!participantIds.includes(id)) {
+          delete updated[id];
+        }
+      });
+      return updated;
+    });
+  }, [participantIds]);
 
   const handleLeave = async () => {
     if (daily) {
@@ -136,7 +205,12 @@ function VoiceRoomContent({ onLeave, connectionState, error }: VoiceRoomContentP
               <ScrollArea className="h-64" data-testid="list-participants">
                 <div className="space-y-2">
                   {participantIds.map((id) => (
-                    <ParticipantItem key={id} participantId={id} />
+                    <ParticipantItem 
+                      key={id} 
+                      participantId={id}
+                      onVolumeChange={handleVolumeChange}
+                      volume={participantVolumes[id] || 100}
+                    />
                   ))}
                 </div>
               </ScrollArea>

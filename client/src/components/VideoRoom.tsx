@@ -15,10 +15,30 @@ function VideoTile({ participantId, isLocal = false }: { participantId: string; 
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    if (videoRef.current && videoState?.persistentTrack) {
-      videoRef.current.srcObject = new MediaStream([videoState.persistentTrack]);
+    const videoElement = videoRef.current;
+    if (!videoElement) return;
+
+    // Check if track is playable and available
+    if (videoState?.state === 'playable' && videoState?.persistentTrack) {
+      const stream = new MediaStream([videoState.persistentTrack]);
+      videoElement.srcObject = stream;
+      
+      // Ensure video plays
+      videoElement.play().catch(err => {
+        console.error('Error playing video:', err);
+      });
+    } else if (videoState?.isOff || !videoState?.persistentTrack) {
+      // Clear video source when track is off or unavailable
+      videoElement.srcObject = null;
     }
-  }, [videoState?.persistentTrack]);
+
+    // Cleanup function - only clear srcObject, let Daily manage tracks
+    return () => {
+      if (videoElement.srcObject) {
+        videoElement.srcObject = null;
+      }
+    };
+  }, [videoState?.state, videoState?.persistentTrack, videoState?.isOff]);
 
   return (
     <Card
@@ -232,8 +252,14 @@ export default function VideoRoom({ roomUrl, onLeave }: VideoRoomProps) {
         });
 
         // Attach event listeners BEFORE joining
-        daily.on('joined-meeting', () => {
+        daily.on('joined-meeting', async () => {
           console.log('Daily: joined meeting!');
+          // Ensure camera is started after joining
+          try {
+            await daily.startCamera();
+          } catch (err) {
+            console.error('Failed to start camera:', err);
+          }
           setConnectionState('connected');
           setError(null);
         });
