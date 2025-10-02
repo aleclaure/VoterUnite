@@ -236,8 +236,9 @@ export default function VideoRoom({ roomUrl, onLeave }: VideoRoomProps) {
   useEffect(() => {
     const initializeDaily = async () => {
       try {
-        // Request camera and microphone permissions first
+        console.log('Requesting camera/mic permissions...');
         await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        console.log('Permissions granted');
         
         const DailyIframe = (await import('@daily-co/daily-js')).default;
         
@@ -246,14 +247,25 @@ export default function VideoRoom({ roomUrl, onLeave }: VideoRoomProps) {
           videoSource: true,
         });
 
+        // Add detailed event listeners for debugging
+        daily.on('loading', () => console.log('Daily: loading'));
+        daily.on('loaded', () => console.log('Daily: loaded'));
+        daily.on('joining-meeting', () => console.log('Daily: joining meeting'));
+        daily.on('joined-meeting', () => console.log('Daily: joined meeting!'));
+        daily.on('error', (e) => console.error('Daily error:', e));
+
         setDailyInstance(daily);
 
-        await daily.join({
+        console.log('Joining Daily room:', roomUrl);
+        const joinResult = await daily.join({
           url: roomUrl,
           userName: user?.email?.split('@')[0] || 'Guest',
         });
+        console.log('Join result:', joinResult);
       } catch (err: any) {
-        console.error('Failed to join room:', err);
+        console.error('Failed to initialize/join:', err);
+        console.error('Error details:', { name: err.name, message: err.message, stack: err.stack });
+        
         // Create a minimal daily instance to show error state
         const DailyIframe = (await import('@daily-co/daily-js')).default;
         const daily = DailyIframe.createCallObject();
@@ -263,7 +275,7 @@ export default function VideoRoom({ roomUrl, onLeave }: VideoRoomProps) {
           daily.emit('error', { 
             errorMsg: err.name === 'NotAllowedError' 
               ? 'Camera/microphone permission denied. Please allow access and try again.' 
-              : 'Failed to join video room. Please try again.'
+              : `Failed to join video room: ${err.message || 'Unknown error'}`
           });
         }, 100);
       }
