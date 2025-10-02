@@ -14,7 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { MessageSquare, Plus, Hash, ArrowUp, ArrowDown, MessageCircle, Mic, Video } from "lucide-react";
+import { MessageSquare, Plus, Hash, ArrowUp, ArrowDown, MessageCircle, Mic, Video, Menu, X } from "lucide-react";
 
 export default function UnionDetail() {
   const [, params] = useRoute("/unions/:id");
@@ -28,6 +28,7 @@ export default function UnionDetail() {
   const [newPostContent, setNewPostContent] = useState("");
   const [isChannelDialogOpen, setIsChannelDialogOpen] = useState(false);
   const [isPostDialogOpen, setIsPostDialogOpen] = useState(false);
+  const [showChannelList, setShowChannelList] = useState(false);
 
   const { data: union, isLoading } = useQuery({
     queryKey: ["/api/unions", unionId],
@@ -233,9 +234,28 @@ export default function UnionDetail() {
           </TabsContent>
 
           <TabsContent value="discussion" className="mt-0">
+            {/* Mobile channel toggle button */}
+            <div className="lg:hidden mb-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowChannelList(!showChannelList)}
+                className="w-full justify-between"
+                data-testid="button-toggle-channels"
+              >
+                <span className="flex items-center gap-2">
+                  {showChannelList ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+                  {showChannelList ? "Hide Channels" : "Show Channels"}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {channels.length} channel{channels.length !== 1 ? 's' : ''}
+                </span>
+              </Button>
+            </div>
+
             <div className="grid grid-cols-12 gap-6">
               {/* Channel Sidebar */}
-              <div className="col-span-3">
+              <div className={`col-span-12 lg:col-span-3 ${showChannelList ? 'block' : 'hidden lg:block'}`}>
                 <Card>
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
@@ -312,7 +332,10 @@ export default function UnionDetail() {
                           return (
                             <button
                               key={channel.id}
-                              onClick={() => setSelectedChannel(channel.id)}
+                              onClick={() => {
+                                setSelectedChannel(channel.id);
+                                setShowChannelList(false); // Close channel list on mobile after selection
+                              }}
                               className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
                                 selectedChannel === channel.id
                                   ? "bg-primary text-primary-foreground"
@@ -337,7 +360,7 @@ export default function UnionDetail() {
               </div>
 
               {/* Posts Feed */}
-              <div className="col-span-9">
+              <div className="col-span-12 lg:col-span-9">
                 {selectedChannel ? (
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
