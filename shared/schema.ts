@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, jsonb, decimal } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, uuid, timestamp, integer, boolean, jsonb, decimal } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -24,7 +24,7 @@ export const unions = pgTable("unions", {
   category: text("category").notNull(), // climate, housing, healthcare, etc.
   scope: text("scope").notNull(), // national, state, district, city
   scopeValue: text("scope_value"), // state code, district number, city name
-  creatorId: varchar("creator_id").references(() => users.id).notNull(),
+  creatorId: uuid("creator_id").notNull(),
   governanceRules: jsonb("governance_rules"), // decision-making method, voting rules
   memberCount: integer("member_count").default(0),
   pledgedCount: integer("pledged_count").default(0),
@@ -37,7 +37,7 @@ export const unions = pgTable("unions", {
 export const unionMembers = pgTable("union_members", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   unionId: varchar("union_id").references(() => unions.id).notNull(),
-  userId: varchar("user_id").notNull(), // UUID from Supabase auth.users (no FK to local users table)
+  userId: uuid("user_id").notNull(),
   role: text("role").default("member"), // member, organizer, admin
   joinedAt: timestamp("joined_at").defaultNow().notNull(),
 });
@@ -157,7 +157,7 @@ export const unionChannels = pgTable("union_channels", {
   name: text("name").notNull(),
   description: text("description"),
   channelType: text("channel_type").default("text"), // text, voice, video
-  createdBy: varchar("created_by").notNull(), // UUID from auth.users
+  createdBy: uuid("created_by").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -166,7 +166,7 @@ export const discussionPosts = pgTable("discussion_posts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   unionId: varchar("union_id").references(() => unions.id).notNull(),
   channelId: varchar("channel_id").references(() => unionChannels.id).notNull(),
-  authorId: varchar("author_id").notNull(), // UUID from auth.users
+  authorId: uuid("author_id").notNull(),
   title: text("title").notNull(),
   content: text("content").notNull(),
   upvotes: integer("upvotes").default(0),
@@ -181,7 +181,7 @@ export const postComments = pgTable("post_comments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   postId: varchar("post_id").references(() => discussionPosts.id).notNull(),
   parentCommentId: varchar("parent_comment_id"), // Self-reference via SQL foreign key
-  authorId: varchar("author_id").notNull(), // UUID from auth.users
+  authorId: uuid("author_id").notNull(),
   content: text("content").notNull(),
   upvotes: integer("upvotes").default(0),
   downvotes: integer("downvotes").default(0),
@@ -193,7 +193,7 @@ export const postComments = pgTable("post_comments", {
 // Post Votes (Track upvotes/downvotes)
 export const postVotes = pgTable("post_votes", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull(), // UUID from auth.users
+  userId: uuid("user_id").notNull(),
   postId: varchar("post_id").references(() => discussionPosts.id),
   commentId: varchar("comment_id").references(() => postComments.id),
   voteType: text("vote_type").notNull(), // upvote, downvote
