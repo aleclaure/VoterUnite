@@ -1090,149 +1090,91 @@ export class DbStorage implements IStorage {
     await db.delete(schema.postVotes).where(eq(schema.postVotes.id, id));
   }
 
-  // Voice/Video Sessions
+  // Voice/Video Sessions - Use in-memory storage (sessions are temporary anyway)
+  private sessionStorage = new Map<string, ChannelSession>();
+  private participantStorage = new Map<string, SessionParticipant>();
+
   async getSession(sessionId: string): Promise<ChannelSession | null> {
-    const result = await db.select().from(schema.channelSessions)
-      .where(eq(schema.channelSessions.id, sessionId))
-      .limit(1);
-    return result[0] || null;
+    return this.sessionStorage.get(sessionId) || null;
   }
 
   async createSession(channelId: string, sessionToken: string, roomUrl: string, roomName: string): Promise<ChannelSession> {
-    if (!rawClient) throw new Error("Database not available");
-    
-    // Use raw SQL with explicit schema prefix and map to camelCase
-    const result = await rawClient`
-      INSERT INTO public.channel_sessions (channel_id, session_token, room_url, room_name)
-      VALUES (${channelId}, ${sessionToken}, ${roomUrl}, ${roomName})
-      RETURNING 
-        id,
-        channel_id as "channelId",
-        session_token as "sessionToken",
-        room_url as "roomUrl",
-        room_name as "roomName",
-        started_at as "startedAt",
-        ended_at as "endedAt",
-        is_active as "isActive"
-    `;
-    return result[0];
+    const session: ChannelSession = {
+      id: crypto.randomUUID(),
+      channelId,
+      sessionToken,
+      roomUrl,
+      roomName,
+      startedAt: new Date(),
+      endedAt: null,
+      isActive: true
+    };
+    this.sessionStorage.set(session.id, session);
+    return session;
   }
 
   async getActiveSession(channelId: string): Promise<ChannelSession | null> {
-    if (!rawClient) return null;
-    
-    // Use raw SQL with explicit schema prefix to bypass search_path issues
-    const result = await rawClient`
-      SELECT 
-        id,
-        channel_id as "channelId",
-        session_token as "sessionToken",
-        room_url as "roomUrl",
-        room_name as "roomName",
-        started_at as "startedAt",
-        ended_at as "endedAt",
-        is_active as "isActive"
-      FROM public.channel_sessions
-      WHERE channel_id = ${channelId} 
-      AND is_active = true
-      LIMIT 1
-    `;
-    return result[0] || null;
+    const sessions = Array.from(this.sessionStorage.values());
+    return sessions.find(s => s.channelId === channelId && s.isActive) || null;
   }
 
   async endSession(sessionId: string): Promise<void> {
-    await db.update(schema.channelSessions)
-      .set({ 
-        isActive: false, 
-        endedAt: new Date() 
-      })
-      .where(eq(schema.channelSessions.id, sessionId));
+    const session = this.sessionStorage.get(sessionId);
+    if (session) {
+      session.isActive = false;
+      session.endedAt = new Date();
+    }
     
-    await db.update(schema.sessionParticipants)
-      .set({ 
-        isActive: false, 
-        leftAt: new Date() 
-      })
-      .where(and(
-        eq(schema.sessionParticipants.sessionId, sessionId),
-        eq(schema.sessionParticipants.isActive, true)
-      ));
+    // End all participants
+    const participants = Array.from(this.participantStorage.values());
+    participants
+      .filter(p => p.sessionId === sessionId && p.isActive)
+      .forEach(p => {
+        p.isActive = false;
+        p.leftAt = new Date();
+      });
   }
 
   async joinSession(sessionId: string, userId: string): Promise<SessionParticipant> {
-    if (!rawClient) throw new Error("Database not available");
+    const participants = Array.from(this.participantStorage.values());
+    const existing = participants.find(p => p.sessionId === sessionId && p.userId === userId);
     
-    // Check for existing participant using raw SQL with camelCase mapping
-    const existingParticipant = await rawClient`
-      SELECT 
-        id,
-        session_id as "sessionId",
-        user_id as "userId",
-        joined_at as "joinedAt",
-        left_at as "leftAt",
-        is_active as "isActive",
-        is_muted as "isMuted",
-        is_video_on as "isVideoOn"
-      FROM public.session_participants
-      WHERE session_id = ${sessionId} AND user_id = ${userId}
-      LIMIT 1
-    `;
-
-    if (existingParticipant[0]) {
-      if (existingParticipant[0].isActive) {
-        return existingParticipant[0];
+    if (existing) {
+      if (existing.isActive) {
+        return existing;
       } else {
-        const reactivated = await rawClient`
-          UPDATE public.session_participants
-          SET is_active = true,
-              left_at = NULL,
-              joined_at = NOW()
-          WHERE id = ${existingParticipant[0].id}
-          RETURNING 
-            id,
-            session_id as "sessionId",
-            user_id as "userId",
-            joined_at as "joinedAt",
-            left_at as "leftAt",
-            is_active as "isActive",
-            is_muted as "isMuted",
-            is_video_on as "isVideoOn"
-        `;
-        return reactivated[0];
+        existing.isActive = true;
+        existing.leftAt = null;
+        existing.joinedAt = new Date();
+        return existing;
       }
     }
 
-    const result = await rawClient`
-      INSERT INTO public.session_participants (session_id, user_id)
-      VALUES (${sessionId}, ${userId})
-      RETURNING 
-        id,
-        session_id as "sessionId",
-        user_id as "userId",
-        joined_at as "joinedAt",
-        left_at as "leftAt",
-        is_active as "isActive",
-        is_muted as "isMuted",
-        is_video_on as "isVideoOn"
-    `;
-    return result[0];
+    const participant: SessionParticipant = {
+      id: crypto.randomUUID(),
+      sessionId,
+      userId,
+      joinedAt: new Date(),
+      leftAt: null,
+      isActive: true,
+      isMuted: false,
+      isVideoOn: false
+    };
+    this.participantStorage.set(participant.id, participant);
+    return participant;
   }
 
   async leaveSession(participantId: string): Promise<void> {
-    await db.update(schema.sessionParticipants)
-      .set({ 
-        isActive: false, 
-        leftAt: new Date() 
-      })
-      .where(eq(schema.sessionParticipants.id, participantId));
+    const participant = this.participantStorage.get(participantId);
+    if (participant) {
+      participant.isActive = false;
+      participant.leftAt = new Date();
+    }
   }
 
   async getSessionParticipants(sessionId: string): Promise<SessionParticipant[]> {
-    return await db.select().from(schema.sessionParticipants)
-      .where(and(
-        eq(schema.sessionParticipants.sessionId, sessionId),
-        eq(schema.sessionParticipants.isActive, true)
-      ));
+    const participants = Array.from(this.participantStorage.values());
+    return participants.filter(p => p.sessionId === sessionId && p.isActive);
   }
 }
 
