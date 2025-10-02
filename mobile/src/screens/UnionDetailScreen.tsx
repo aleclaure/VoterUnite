@@ -39,13 +39,40 @@ export default function UnionDetailScreen({ route, navigation }: any) {
 
   useEffect(() => {
     if (selectedChannel) {
-      fetchPosts();
+      const channel = channels.find(c => c.id === selectedChannel);
+      if (channel) {
+        if (channel.channelType === 'voice') {
+          navigation.navigate('VoiceRoom', { 
+            channelId: channel.id, 
+            channelName: channel.name 
+          });
+          // Reset to first text channel after navigation
+          const firstTextChannel = channels.find(c => c.channelType === 'text');
+          if (firstTextChannel) {
+            setSelectedChannel(firstTextChannel.id);
+          }
+        } else if (channel.channelType === 'video') {
+          navigation.navigate('VideoRoom', { 
+            channelId: channel.id, 
+            channelName: channel.name 
+          });
+          // Reset to first text channel after navigation
+          const firstTextChannel = channels.find(c => c.channelType === 'text');
+          if (firstTextChannel) {
+            setSelectedChannel(firstTextChannel.id);
+          }
+        } else {
+          fetchPosts();
+        }
+      }
     }
   }, [selectedChannel]);
 
   useEffect(() => {
     if (channels.length > 0 && !selectedChannel) {
-      setSelectedChannel(channels[0].id);
+      // Prefer text channels by default
+      const firstTextChannel = channels.find(c => c.channelType === 'text');
+      setSelectedChannel(firstTextChannel?.id || channels[0].id);
     }
   }, [channels]);
 

@@ -10,6 +10,8 @@ import UnionsScreen from '../screens/UnionsScreen';
 import UnionDetailScreen from '../screens/UnionDetailScreen';
 import PostDetailScreen from '../screens/PostDetailScreen';
 import CreateUnionScreen from '../screens/CreateUnionScreen';
+import VoiceRoomScreen from '../screens/VoiceRoomScreen';
+import VideoRoomScreen from '../screens/VideoRoomScreen';
 import DashboardScreen from '../screens/DashboardScreen';
 import EducationScreen from '../screens/EducationScreen';
 import EventsScreen from '../screens/EventsScreen';
@@ -26,6 +28,8 @@ function UnionsStack() {
       <Stack.Screen name="UnionDetail" component={UnionDetailScreen} options={{ title: 'Union Details' }} />
       <Stack.Screen name="PostDetail" component={PostDetailScreen} options={{ title: 'Post' }} />
       <Stack.Screen name="CreateUnion" component={CreateUnionScreen} options={{ title: 'Create Union' }} />
+      <Stack.Screen name="VoiceRoom" component={VoiceRoomScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="VideoRoom" component={VideoRoomScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }
