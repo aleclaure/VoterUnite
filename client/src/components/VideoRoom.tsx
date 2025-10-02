@@ -235,22 +235,37 @@ export default function VideoRoom({ roomUrl, onLeave }: VideoRoomProps) {
 
   useEffect(() => {
     const initializeDaily = async () => {
-      const DailyIframe = (await import('@daily-co/daily-js')).default;
-      
-      const daily = DailyIframe.createCallObject({
-        audioSource: true,
-        videoSource: true,
-      });
-
-      setDailyInstance(daily);
-
       try {
+        // Request camera and microphone permissions first
+        await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        
+        const DailyIframe = (await import('@daily-co/daily-js')).default;
+        
+        const daily = DailyIframe.createCallObject({
+          audioSource: true,
+          videoSource: true,
+        });
+
+        setDailyInstance(daily);
+
         await daily.join({
           url: roomUrl,
           userName: user?.email?.split('@')[0] || 'Guest',
         });
-      } catch (err) {
+      } catch (err: any) {
         console.error('Failed to join room:', err);
+        // Create a minimal daily instance to show error state
+        const DailyIframe = (await import('@daily-co/daily-js')).default;
+        const daily = DailyIframe.createCallObject();
+        setDailyInstance(daily);
+        // Trigger error event
+        setTimeout(() => {
+          daily.emit('error', { 
+            errorMsg: err.name === 'NotAllowedError' 
+              ? 'Camera/microphone permission denied. Please allow access and try again.' 
+              : 'Failed to join video room. Please try again.'
+          });
+        }, 100);
       }
     };
 

@@ -214,22 +214,37 @@ export default function VoiceRoom({ roomUrl, onLeave }: VoiceRoomProps) {
 
   useEffect(() => {
     const initializeDaily = async () => {
-      const DailyIframe = (await import('@daily-co/daily-js')).default;
-      
-      const daily = DailyIframe.createCallObject({
-        audioSource: true,
-        videoSource: false,
-      });
-
-      setDailyInstance(daily);
-
       try {
+        // Request microphone permission first
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        
+        const DailyIframe = (await import('@daily-co/daily-js')).default;
+        
+        const daily = DailyIframe.createCallObject({
+          audioSource: true,
+          videoSource: false,
+        });
+
+        setDailyInstance(daily);
+
         await daily.join({
           url: roomUrl,
           userName: user?.email?.split('@')[0] || 'Guest',
         });
-      } catch (err) {
+      } catch (err: any) {
         console.error('Failed to join room:', err);
+        // Create a minimal daily instance to show error state
+        const DailyIframe = (await import('@daily-co/daily-js')).default;
+        const daily = DailyIframe.createCallObject();
+        setDailyInstance(daily);
+        // Trigger error event
+        setTimeout(() => {
+          daily.emit('error', { 
+            errorMsg: err.name === 'NotAllowedError' 
+              ? 'Microphone permission denied. Please allow microphone access and try again.' 
+              : 'Failed to join voice room. Please try again.'
+          });
+        }, 100);
       }
     };
 
