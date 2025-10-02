@@ -25,7 +25,7 @@ export async function apiRequest(
     method?: string;
     body?: unknown;
   }
-): Promise<Response> {
+): Promise<any> {
   const method = options?.method || "GET";
   const data = options?.body;
   
@@ -43,7 +43,7 @@ export async function apiRequest(
   });
 
   await throwIfResNotOk(res);
-  return res;
+  return await res.json();
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";

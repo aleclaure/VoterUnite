@@ -102,13 +102,17 @@ export default function UnionDetail() {
   const joinRoomMutation = useMutation({
     mutationFn: async ({ channelId, channelType }: { channelId: string; channelType: 'voice' | 'video' }) => {
       console.log('🚀 MUTATION FIRED - Joining room:', channelId, channelType);
-      const response = await apiRequest(`/api/channels/${channelId}/session`, {
-        method: "POST",
-        body: {},
-      });
-      const data = await response.json();
-      console.log('📥 API Response received:', data);
-      return { ...data, channelType, channelId };
+      try {
+        const data = await apiRequest(`/api/channels/${channelId}/session`, {
+          method: "POST",
+          body: {},
+        });
+        console.log('📥 API Response received:', data);
+        return { ...data, channelType, channelId };
+      } catch (error: any) {
+        console.error('❌ Mutation error:', error);
+        throw error;
+      }
     },
     onSuccess: (data: any) => {
       console.log('Join room response:', JSON.stringify(data));
