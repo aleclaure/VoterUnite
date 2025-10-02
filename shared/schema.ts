@@ -200,6 +200,32 @@ export const postVotes = pgTable("post_votes", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Voice/Video Session Tables
+
+// Channel Sessions (Active voice/video rooms)
+export const channelSessions = pgTable("channel_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  channelId: varchar("channel_id").references(() => unionChannels.id).notNull(),
+  sessionToken: varchar("session_token").notNull(),
+  roomUrl: text("room_url").notNull(),
+  roomName: varchar("room_name").notNull(),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  endedAt: timestamp("ended_at"),
+  isActive: boolean("is_active").default(true).notNull(),
+});
+
+// Session Participants (Who's in each room)
+export const sessionParticipants = pgTable("session_participants", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").references(() => channelSessions.id).notNull(),
+  userId: uuid("user_id").notNull(),
+  joinedAt: timestamp("joined_at").defaultNow().notNull(),
+  leftAt: timestamp("left_at"),
+  isActive: boolean("is_active").default(true).notNull(),
+  isMuted: boolean("is_muted").default(false).notNull(),
+  isVideoOn: boolean("is_video_on").default(false).notNull(),
+});
+
 // Insert Schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertUnionSchema = createInsertSchema(unions).omit({ id: true, createdAt: true, memberCount: true, pledgedCount: true, districtCount: true, powerIndex: true });
@@ -217,6 +243,8 @@ export const insertUnionChannelSchema = createInsertSchema(unionChannels).omit({
 export const insertDiscussionPostSchema = createInsertSchema(discussionPosts).omit({ id: true, createdAt: true, updatedAt: true, upvotes: true, downvotes: true, commentCount: true });
 export const insertPostCommentSchema = createInsertSchema(postComments).omit({ id: true, createdAt: true, updatedAt: true, upvotes: true, downvotes: true, depth: true });
 export const insertPostVoteSchema = createInsertSchema(postVotes).omit({ id: true, createdAt: true });
+export const insertChannelSessionSchema = createInsertSchema(channelSessions).omit({ id: true, startedAt: true, isActive: true });
+export const insertSessionParticipantSchema = createInsertSchema(sessionParticipants).omit({ id: true, joinedAt: true, isActive: true, isMuted: true, isVideoOn: true });
 
 // Types
 export type User = typeof users.$inferSelect;
@@ -251,3 +279,7 @@ export type PostComment = typeof postComments.$inferSelect;
 export type InsertPostComment = z.infer<typeof insertPostCommentSchema>;
 export type PostVote = typeof postVotes.$inferSelect;
 export type InsertPostVote = z.infer<typeof insertPostVoteSchema>;
+export type ChannelSession = typeof channelSessions.$inferSelect;
+export type InsertChannelSession = z.infer<typeof insertChannelSessionSchema>;
+export type SessionParticipant = typeof sessionParticipants.$inferSelect;
+export type InsertSessionParticipant = z.infer<typeof insertSessionParticipantSchema>;
