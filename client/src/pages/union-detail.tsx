@@ -105,13 +105,13 @@ export default function UnionDetail() {
         method: "POST",
         body: {},
       });
-      return { ...response, channelType };
+      return { ...response, channelType, channelId };
     },
     onSuccess: (data: any) => {
       setActiveRoom({
         type: data.channelType,
-        roomUrl: data.roomUrl,
-        sessionId: data.sessionId,
+        roomUrl: data.session.roomUrl,
+        sessionId: data.session.id,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/channels", data.channelId, "session"] });
       setJoiningChannelId(null);
