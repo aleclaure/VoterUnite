@@ -4,6 +4,7 @@ import * as schema from '@shared/schema';
 
 // Supabase PostgreSQL connection
 let db: any = null;
+let rawClient: any = null;
 
 if (process.env.SUPABASE_URL && process.env.SUPABASE_DB_PASSWORD) {
   try {
@@ -33,6 +34,7 @@ if (process.env.SUPABASE_URL && process.env.SUPABASE_DB_PASSWORD) {
       }
     });
     
+    rawClient = client; // Save raw client for direct SQL queries
     db = drizzle(client, { schema });
     
     // Test the connection
@@ -65,4 +67,4 @@ if (process.env.SUPABASE_URL && process.env.SUPABASE_DB_PASSWORD) {
   console.log('   → Using in-memory storage (data will not persist)\n');
 }
 
-export { db };
+export { db, rawClient };
