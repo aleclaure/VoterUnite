@@ -1090,7 +1090,7 @@ export class DbStorage implements IStorage {
     await db.delete(schema.postVotes).where(eq(schema.postVotes.id, id));
   }
 
-  // Voice/Video Sessions - Use Supabase client directly
+  // Voice/Video Sessions
   async getSession(sessionId: string): Promise<ChannelSession | null> {
     const result = await db.select().from(schema.channelSessions)
       .where(eq(schema.channelSessions.id, sessionId))
@@ -1099,22 +1099,44 @@ export class DbStorage implements IStorage {
   }
 
   async createSession(channelId: string, sessionToken: string, roomUrl: string, roomName: string): Promise<ChannelSession> {
-    const result = await db.insert(schema.channelSessions).values({
-      channelId,
-      sessionToken,
-      roomUrl,
-      roomName
-    }).returning();
+    if (!rawClient) throw new Error("Database not available");
+    
+    // Use raw SQL with explicit schema prefix and map to camelCase
+    const result = await rawClient`
+      INSERT INTO public.channel_sessions (channel_id, session_token, room_url, room_name)
+      VALUES (${channelId}, ${sessionToken}, ${roomUrl}, ${roomName})
+      RETURNING 
+        id,
+        channel_id as "channelId",
+        session_token as "sessionToken",
+        room_url as "roomUrl",
+        room_name as "roomName",
+        started_at as "startedAt",
+        ended_at as "endedAt",
+        is_active as "isActive"
+    `;
     return result[0];
   }
 
   async getActiveSession(channelId: string): Promise<ChannelSession | null> {
-    const result = await db.select().from(schema.channelSessions)
-      .where(and(
-        eq(schema.channelSessions.channelId, channelId),
-        eq(schema.channelSessions.isActive, true)
-      ))
-      .limit(1);
+    if (!rawClient) return null;
+    
+    // Use raw SQL with explicit schema prefix to bypass search_path issues
+    const result = await rawClient`
+      SELECT 
+        id,
+        channel_id as "channelId",
+        session_token as "sessionToken",
+        room_url as "roomUrl",
+        room_name as "roomName",
+        started_at as "startedAt",
+        ended_at as "endedAt",
+        is_active as "isActive"
+      FROM public.channel_sessions
+      WHERE channel_id = ${channelId} 
+      AND is_active = true
+      LIMIT 1
+    `;
     return result[0] || null;
   }
 
@@ -1138,33 +1160,61 @@ export class DbStorage implements IStorage {
   }
 
   async joinSession(sessionId: string, userId: string): Promise<SessionParticipant> {
-    const existingParticipant = await db.select().from(schema.sessionParticipants)
-      .where(and(
-        eq(schema.sessionParticipants.sessionId, sessionId),
-        eq(schema.sessionParticipants.userId, userId)
-      ))
-      .limit(1);
+    if (!rawClient) throw new Error("Database not available");
+    
+    // Check for existing participant using raw SQL with camelCase mapping
+    const existingParticipant = await rawClient`
+      SELECT 
+        id,
+        session_id as "sessionId",
+        user_id as "userId",
+        joined_at as "joinedAt",
+        left_at as "leftAt",
+        is_active as "isActive",
+        is_muted as "isMuted",
+        is_video_on as "isVideoOn"
+      FROM public.session_participants
+      WHERE session_id = ${sessionId} AND user_id = ${userId}
+      LIMIT 1
+    `;
 
     if (existingParticipant[0]) {
       if (existingParticipant[0].isActive) {
         return existingParticipant[0];
       } else {
-        const reactivated = await db.update(schema.sessionParticipants)
-          .set({
-            isActive: true,
-            leftAt: null,
-            joinedAt: new Date()
-          })
-          .where(eq(schema.sessionParticipants.id, existingParticipant[0].id))
-          .returning();
+        const reactivated = await rawClient`
+          UPDATE public.session_participants
+          SET is_active = true,
+              left_at = NULL,
+              joined_at = NOW()
+          WHERE id = ${existingParticipant[0].id}
+          RETURNING 
+            id,
+            session_id as "sessionId",
+            user_id as "userId",
+            joined_at as "joinedAt",
+            left_at as "leftAt",
+            is_active as "isActive",
+            is_muted as "isMuted",
+            is_video_on as "isVideoOn"
+        `;
         return reactivated[0];
       }
     }
 
-    const result = await db.insert(schema.sessionParticipants).values({
-      sessionId,
-      userId
-    }).returning();
+    const result = await rawClient`
+      INSERT INTO public.session_participants (session_id, user_id)
+      VALUES (${sessionId}, ${userId})
+      RETURNING 
+        id,
+        session_id as "sessionId",
+        user_id as "userId",
+        joined_at as "joinedAt",
+        left_at as "leftAt",
+        is_active as "isActive",
+        is_muted as "isMuted",
+        is_video_on as "isVideoOn"
+    `;
     return result[0];
   }
 
