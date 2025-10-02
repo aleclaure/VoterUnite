@@ -1,5 +1,5 @@
-import { useEffect, useState, useRef } from 'react';
-import { DailyProvider, useDaily, useParticipantIds, useLocalParticipant, useVideoTrack, useScreenShare } from '@daily-co/daily-react';
+import { useEffect, useState } from 'react';
+import { DailyProvider, DailyVideo, useDaily, useParticipantIds, useLocalParticipant, useParticipantProperty, useScreenShare } from '@daily-co/daily-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Video, VideoOff, Mic, MicOff, MonitorUp, PhoneOff } from 'lucide-react';
@@ -11,86 +11,55 @@ interface VideoRoomProps {
 }
 
 function VideoTile({ participantId, isLocal = false }: { participantId: string; isLocal?: boolean }) {
-  const videoState = useVideoTrack(participantId);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const userName = useParticipantProperty(participantId, 'user_name');
+  const videoState = useParticipantProperty(participantId, 'tracks.video.state');
+  const audioState = useParticipantProperty(participantId, 'tracks.audio.state');
 
   useEffect(() => {
-    console.log(`[VideoTile ${participantId}] Video state:`, {
-      state: videoState?.state,
-      isOff: videoState?.isOff,
-      hasPersistentTrack: !!videoState?.persistentTrack,
-      hasTrack: !!videoState?.track,
+    console.log(`[VideoTile ${participantId}] Participant state:`, {
+      userName,
+      videoState,
+      audioState,
       isLocal
     });
-
-    const videoElement = videoRef.current;
-    if (!videoElement) {
-      console.log(`[VideoTile ${participantId}] No video element ref`);
-      return;
-    }
-
-    // Handle video track rendering - retain last good track during transitions
-    if (videoState?.isOff) {
-      // Video is explicitly off - clear it
-      console.log(`[VideoTile ${participantId}] Video is off, clearing source`);
-      videoElement.srcObject = null;
-    } else if (videoState?.persistentTrack) {
-      // We have a persistent track - update the video
-      console.log(`[VideoTile ${participantId}] Setting up video stream with persistent track (state: ${videoState.state})`);
-      const stream = new MediaStream([videoState.persistentTrack]);
-      videoElement.srcObject = stream;
-      
-      // Ensure video plays
-      videoElement.play().catch(err => {
-        console.error(`[VideoTile ${participantId}] Error playing video:`, err);
-      });
-    } else if (videoState?.track) {
-      // Fallback to regular track if persistentTrack not available
-      console.log(`[VideoTile ${participantId}] Using regular track (state: ${videoState.state})`);
-      const stream = new MediaStream([videoState.track]);
-      videoElement.srcObject = stream;
-      
-      videoElement.play().catch(err => {
-        console.error(`[VideoTile ${participantId}] Error playing video:`, err);
-      });
-    }
-    // NOTE: Don't clear video when track is temporarily null - retain last frame during transitions
-  }, [videoState?.persistentTrack, videoState?.track, videoState?.isOff, participantId, isLocal]);
-
-  // Cleanup only on component unmount
-  useEffect(() => {
-    return () => {
-      const videoElement = videoRef.current;
-      if (videoElement?.srcObject) {
-        console.log(`[VideoTile ${participantId}] Unmounting: clearing video source`);
-        videoElement.srcObject = null;
-      }
-    };
-  }, [participantId]);
+  }, [participantId, userName, videoState, audioState, isLocal]);
 
   return (
     <Card
       className="relative aspect-video overflow-hidden bg-secondary/50"
       data-testid={`video-tile-${participantId}`}
     >
-      {videoState?.isOff ? (
+      {videoState === 'playable' || videoState === 'loading' ? (
+        <DailyVideo
+          sessionId={participantId}
+          type="video"
+          muted={isLocal}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover'
+          }}
+          onLoadedData={() => console.log(`[VideoTile ${participantId}] Video loaded and playing`)}
+          onError={(e) => console.error(`[VideoTile ${participantId}] Video error:`, e)}
+        />
+      ) : (
         <div className="absolute inset-0 flex items-center justify-center">
           <VideoOff className="w-12 h-12 text-muted-foreground" />
+          <div className="absolute bottom-1/2 text-xs text-muted-foreground">
+            {videoState === 'off' ? 'Camera Off' : videoState === 'blocked' ? 'Camera Blocked' : 'Loading...'}
+          </div>
         </div>
-      ) : (
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted={isLocal}
-          className="w-full h-full object-cover"
-        />
       )}
       <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
         <span className="text-xs font-medium bg-black/60 px-2 py-1 rounded text-white">
-          {participantId.substring(0, 8)}
+          {userName || participantId.substring(0, 8)}
           {isLocal && ' (You)'}
         </span>
+        {audioState !== 'off' ? (
+          <Mic className="w-3 h-3 text-white" />
+        ) : (
+          <MicOff className="w-3 h-3 text-white" />
+        )}
       </div>
     </Card>
   );
@@ -276,52 +245,92 @@ export default function VideoRoom({ roomUrl, onLeave }: VideoRoomProps) {
   useEffect(() => {
     const initializeDaily = async () => {
       try {
-        console.log('Requesting camera/mic permissions...');
-        await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-        console.log('Permissions granted');
+        console.log('🎥 [VideoRoom] Requesting camera/mic permissions...');
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        console.log('✅ [VideoRoom] Permissions granted, tracks:', {
+          audioTracks: stream.getAudioTracks().length,
+          videoTracks: stream.getVideoTracks().length,
+        });
         
         const DailyIframe = (await import('@daily-co/daily-js')).default;
+        console.log('📦 [VideoRoom] Daily.co library loaded');
         
         const daily = DailyIframe.createCallObject({
           audioSource: true,
           videoSource: true,
         });
+        console.log('🔧 [VideoRoom] Daily call object created');
 
         // Attach event listeners BEFORE joining
-        daily.on('joined-meeting', async () => {
-          console.log('Daily: joined meeting!');
+        daily.on('joined-meeting', async (event: any) => {
+          console.log('🎉 [VideoRoom] Joined meeting!', event);
+          
+          // Log participant info
+          const participants = daily.participants();
+          console.log('👥 [VideoRoom] Current participants:', Object.keys(participants).length);
+          Object.entries(participants).forEach(([id, p]: [string, any]) => {
+            console.log(`  - ${id}:`, {
+              local: p.local,
+              userName: p.user_name,
+              video: p.tracks?.video?.state,
+              audio: p.tracks?.audio?.state
+            });
+          });
+          
           // Ensure camera is started after joining
           try {
-            await daily.startCamera();
+            console.log('📹 [VideoRoom] Starting camera...');
+            const cameraResult = await daily.startCamera();
+            console.log('✅ [VideoRoom] Camera started:', cameraResult);
           } catch (err) {
-            console.error('Failed to start camera:', err);
+            console.error('❌ [VideoRoom] Failed to start camera:', err);
           }
           setConnectionState('connected');
           setError(null);
         });
 
+        daily.on('participant-joined', (event: any) => {
+          console.log('👤 [VideoRoom] Participant joined:', event?.participant?.user_id || event?.participant?.session_id);
+        });
+
+        daily.on('participant-updated', (event: any) => {
+          console.log('🔄 [VideoRoom] Participant updated:', {
+            id: event?.participant?.session_id,
+            video: event?.participant?.tracks?.video?.state,
+            audio: event?.participant?.tracks?.audio?.state
+          });
+        });
+
         daily.on('error', (e: any) => {
-          console.error('Daily error:', e);
+          console.error('❌ [VideoRoom] Daily error:', e);
           setConnectionState('error');
           setError(e?.errorMsg || 'Failed to connect to video room');
         });
 
         daily.on('left-meeting', () => {
-          console.log('Daily: left meeting');
+          console.log('👋 [VideoRoom] Left meeting');
           setConnectionState('connecting');
+        });
+
+        daily.on('camera-error', (e: any) => {
+          console.error('📹❌ [VideoRoom] Camera error:', e);
+        });
+
+        daily.on('started-camera', () => {
+          console.log('📹✅ [VideoRoom] Camera started event');
         });
 
         setDailyInstance(daily);
 
-        console.log('Joining Daily room:', roomUrl);
+        console.log('🚀 [VideoRoom] Joining Daily room:', roomUrl);
         const joinResult = await daily.join({
           url: roomUrl,
           userName: user?.email?.split('@')[0] || 'Guest',
         });
-        console.log('Join result:', joinResult);
+        console.log('✅ [VideoRoom] Join result:', joinResult);
       } catch (err: any) {
-        console.error('Failed to initialize/join:', err);
-        console.error('Error details:', { name: err.name, message: err.message, stack: err.stack });
+        console.error('❌ [VideoRoom] Failed to initialize/join:', err);
+        console.error('📋 [VideoRoom] Error details:', { name: err.name, message: err.message, stack: err.stack });
         
         setConnectionState('error');
         setError(
@@ -335,12 +344,14 @@ export default function VideoRoom({ roomUrl, onLeave }: VideoRoomProps) {
     initializeDaily();
 
     return () => {
+      // Cleanup uses the daily instance directly, not state
       if (dailyInstance) {
-        dailyInstance.leave().catch(console.error);
-        dailyInstance.destroy().catch(console.error);
+        console.log('🧹 [VideoRoom] Cleaning up Daily instance');
+        dailyInstance.leave().catch((err: any) => console.error('Error leaving:', err));
+        dailyInstance.destroy().catch((err: any) => console.error('Error destroying:', err));
       }
     };
-  }, [roomUrl]);
+  }, [roomUrl, dailyInstance]);
 
   if (!dailyInstance) {
     return (
