@@ -215,8 +215,9 @@ export default function VoiceRoom({ roomUrl, onLeave }: VoiceRoomProps) {
   useEffect(() => {
     const initializeDaily = async () => {
       try {
-        // Request microphone permission first
+        console.log('Requesting microphone permission...');
         await navigator.mediaDevices.getUserMedia({ audio: true });
+        console.log('Microphone permission granted');
         
         const DailyIframe = (await import('@daily-co/daily-js')).default;
         
@@ -227,12 +228,18 @@ export default function VoiceRoom({ roomUrl, onLeave }: VoiceRoomProps) {
 
         setDailyInstance(daily);
 
-        await daily.join({
+        console.log('Joining Daily room:', roomUrl);
+        const joinResult = await daily.join({
           url: roomUrl,
           userName: user?.email?.split('@')[0] || 'Guest',
         });
+        console.log('Join result:', joinResult);
       } catch (err: any) {
-        console.error('Failed to join room:', err);
+        console.error('Failed to initialize/join room:', err);
+        console.error('Error name:', err.name);
+        console.error('Error message:', err.message);
+        console.error('Error stack:', err.stack);
+        
         // Create a minimal daily instance to show error state
         const DailyIframe = (await import('@daily-co/daily-js')).default;
         const daily = DailyIframe.createCallObject();
@@ -242,7 +249,7 @@ export default function VoiceRoom({ roomUrl, onLeave }: VoiceRoomProps) {
           daily.emit('error', { 
             errorMsg: err.name === 'NotAllowedError' 
               ? 'Microphone permission denied. Please allow microphone access and try again.' 
-              : 'Failed to join voice room. Please try again.'
+              : `Failed to join voice room: ${err.message || 'Unknown error'}`
           });
         }, 100);
       }
