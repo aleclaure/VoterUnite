@@ -15,20 +15,47 @@ function VideoTile({ participantId, isLocal = false }: { participantId: string; 
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    const videoElement = videoRef.current;
-    if (!videoElement) return;
+    console.log(`[VideoTile ${participantId}] Video state:`, {
+      state: videoState?.state,
+      isOff: videoState?.isOff,
+      hasPersistentTrack: !!videoState?.persistentTrack,
+      hasTrack: !!videoState?.track,
+      isLocal
+    });
 
-    // Check if track is playable and available
-    if (videoState?.state === 'playable' && videoState?.persistentTrack) {
+    const videoElement = videoRef.current;
+    if (!videoElement) {
+      console.log(`[VideoTile ${participantId}] No video element ref`);
+      return;
+    }
+
+    // Handle video track rendering based on state
+    if (videoState?.isOff) {
+      // Video is explicitly off
+      console.log(`[VideoTile ${participantId}] Video is off, clearing source`);
+      videoElement.srcObject = null;
+    } else if (videoState?.persistentTrack) {
+      // We have a track - try to play it regardless of state
+      console.log(`[VideoTile ${participantId}] Setting up video stream with track (state: ${videoState.state})`);
       const stream = new MediaStream([videoState.persistentTrack]);
       videoElement.srcObject = stream;
       
       // Ensure video plays
       videoElement.play().catch(err => {
-        console.error('Error playing video:', err);
+        console.error(`[VideoTile ${participantId}] Error playing video:`, err);
       });
-    } else if (videoState?.isOff || !videoState?.persistentTrack) {
-      // Clear video source when track is off or unavailable
+    } else if (videoState?.track) {
+      // Fallback to regular track if persistentTrack not available
+      console.log(`[VideoTile ${participantId}] Using regular track (state: ${videoState.state})`);
+      const stream = new MediaStream([videoState.track]);
+      videoElement.srcObject = stream;
+      
+      videoElement.play().catch(err => {
+        console.error(`[VideoTile ${participantId}] Error playing video:`, err);
+      });
+    } else {
+      // No track available
+      console.log(`[VideoTile ${participantId}] No track available yet`);
       videoElement.srcObject = null;
     }
 
@@ -38,7 +65,7 @@ function VideoTile({ participantId, isLocal = false }: { participantId: string; 
         videoElement.srcObject = null;
       }
     };
-  }, [videoState?.state, videoState?.persistentTrack, videoState?.isOff]);
+  }, [videoState?.state, videoState?.persistentTrack, videoState?.track, videoState?.isOff, participantId, isLocal]);
 
   return (
     <Card
@@ -83,6 +110,14 @@ function VideoRoomContent({ onLeave, connectionState, error }: VideoRoomContentP
   const [isCameraOn, setIsCameraOn] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+
+  useEffect(() => {
+    console.log('[VideoRoom] Participants changed:', {
+      count: participantIds.length,
+      ids: participantIds,
+      localId: localParticipant?.session_id
+    });
+  }, [participantIds, localParticipant]);
 
   const toggleCamera = () => {
     if (daily) {
