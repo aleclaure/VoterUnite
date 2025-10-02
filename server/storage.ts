@@ -1090,91 +1090,99 @@ export class DbStorage implements IStorage {
     await db.delete(schema.postVotes).where(eq(schema.postVotes.id, id));
   }
 
-  // Voice/Video Sessions - Use in-memory storage (sessions are temporary anyway)
-  private sessionStorage = new Map<string, ChannelSession>();
-  private participantStorage = new Map<string, SessionParticipant>();
-
+  // Voice/Video Sessions - Use Supabase client directly
   async getSession(sessionId: string): Promise<ChannelSession | null> {
-    return this.sessionStorage.get(sessionId) || null;
+    const result = await db.select().from(schema.channelSessions)
+      .where(eq(schema.channelSessions.id, sessionId))
+      .limit(1);
+    return result[0] || null;
   }
 
   async createSession(channelId: string, sessionToken: string, roomUrl: string, roomName: string): Promise<ChannelSession> {
-    const session: ChannelSession = {
-      id: crypto.randomUUID(),
+    const result = await db.insert(schema.channelSessions).values({
       channelId,
       sessionToken,
       roomUrl,
-      roomName,
-      startedAt: new Date(),
-      endedAt: null,
-      isActive: true
-    };
-    this.sessionStorage.set(session.id, session);
-    return session;
+      roomName
+    }).returning();
+    return result[0];
   }
 
   async getActiveSession(channelId: string): Promise<ChannelSession | null> {
-    const sessions = Array.from(this.sessionStorage.values());
-    return sessions.find(s => s.channelId === channelId && s.isActive) || null;
+    const result = await db.select().from(schema.channelSessions)
+      .where(and(
+        eq(schema.channelSessions.channelId, channelId),
+        eq(schema.channelSessions.isActive, true)
+      ))
+      .limit(1);
+    return result[0] || null;
   }
 
   async endSession(sessionId: string): Promise<void> {
-    const session = this.sessionStorage.get(sessionId);
-    if (session) {
-      session.isActive = false;
-      session.endedAt = new Date();
-    }
+    await db.update(schema.channelSessions)
+      .set({ 
+        isActive: false, 
+        endedAt: new Date() 
+      })
+      .where(eq(schema.channelSessions.id, sessionId));
     
-    // End all participants
-    const participants = Array.from(this.participantStorage.values());
-    participants
-      .filter(p => p.sessionId === sessionId && p.isActive)
-      .forEach(p => {
-        p.isActive = false;
-        p.leftAt = new Date();
-      });
+    await db.update(schema.sessionParticipants)
+      .set({ 
+        isActive: false, 
+        leftAt: new Date() 
+      })
+      .where(and(
+        eq(schema.sessionParticipants.sessionId, sessionId),
+        eq(schema.sessionParticipants.isActive, true)
+      ));
   }
 
   async joinSession(sessionId: string, userId: string): Promise<SessionParticipant> {
-    const participants = Array.from(this.participantStorage.values());
-    const existing = participants.find(p => p.sessionId === sessionId && p.userId === userId);
-    
-    if (existing) {
-      if (existing.isActive) {
-        return existing;
+    const existingParticipant = await db.select().from(schema.sessionParticipants)
+      .where(and(
+        eq(schema.sessionParticipants.sessionId, sessionId),
+        eq(schema.sessionParticipants.userId, userId)
+      ))
+      .limit(1);
+
+    if (existingParticipant[0]) {
+      if (existingParticipant[0].isActive) {
+        return existingParticipant[0];
       } else {
-        existing.isActive = true;
-        existing.leftAt = null;
-        existing.joinedAt = new Date();
-        return existing;
+        const reactivated = await db.update(schema.sessionParticipants)
+          .set({
+            isActive: true,
+            leftAt: null,
+            joinedAt: new Date()
+          })
+          .where(eq(schema.sessionParticipants.id, existingParticipant[0].id))
+          .returning();
+        return reactivated[0];
       }
     }
 
-    const participant: SessionParticipant = {
-      id: crypto.randomUUID(),
+    const result = await db.insert(schema.sessionParticipants).values({
       sessionId,
-      userId,
-      joinedAt: new Date(),
-      leftAt: null,
-      isActive: true,
-      isMuted: false,
-      isVideoOn: false
-    };
-    this.participantStorage.set(participant.id, participant);
-    return participant;
+      userId
+    }).returning();
+    return result[0];
   }
 
   async leaveSession(participantId: string): Promise<void> {
-    const participant = this.participantStorage.get(participantId);
-    if (participant) {
-      participant.isActive = false;
-      participant.leftAt = new Date();
-    }
+    await db.update(schema.sessionParticipants)
+      .set({ 
+        isActive: false, 
+        leftAt: new Date() 
+      })
+      .where(eq(schema.sessionParticipants.id, participantId));
   }
 
   async getSessionParticipants(sessionId: string): Promise<SessionParticipant[]> {
-    const participants = Array.from(this.participantStorage.values());
-    return participants.filter(p => p.sessionId === sessionId && p.isActive);
+    return await db.select().from(schema.sessionParticipants)
+      .where(and(
+        eq(schema.sessionParticipants.sessionId, sessionId),
+        eq(schema.sessionParticipants.isActive, true)
+      ));
   }
 }
 
