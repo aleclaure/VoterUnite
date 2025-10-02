@@ -406,14 +406,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/channels/:channelId/session", requireAuth, async (req, res) => {
     try {
       const { channelId } = req.params;
-      const { channelName, channelType } = req.body;
 
-      if (!channelName || !channelType) {
-        return res.status(400).json({ message: "channelName and channelType are required" });
+      const channel = await storage.getChannel(channelId);
+      if (!channel) {
+        return res.status(404).json({ message: "Channel not found" });
       }
 
-      if (channelType !== 'voice' && channelType !== 'video') {
-        return res.status(400).json({ message: "channelType must be 'voice' or 'video'" });
+      if (channel.channelType !== 'voice' && channel.channelType !== 'video') {
+        return res.status(400).json({ message: "Channel type must be 'voice' or 'video'" });
+      }
+
+      const membership = await storage.getUnionMembership(channel.unionId, req.userId!);
+      if (!membership) {
+        return res.status(403).json({ message: "You must be a union member to join this channel" });
       }
 
       const existingSession = await storage.getActiveSession(channelId);
@@ -422,7 +427,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ session: existingSession, participant });
       }
 
-      const { roomUrl, roomName, sessionToken } = await createDailyRoom(channelId, channelName, channelType);
+      const { roomUrl, roomName, sessionToken } = await createDailyRoom(channelId, channel.name, channel.channelType);
       const session = await storage.createSession(channelId, sessionToken, roomUrl, roomName);
       const participant = await storage.joinSession(session.id, req.userId!);
 
@@ -433,9 +438,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/channels/:channelId/session", async (req, res) => {
+  app.get("/api/channels/:channelId/session", requireAuth, async (req, res) => {
     try {
       const { channelId } = req.params;
+      
+      const channel = await storage.getChannel(channelId);
+      if (!channel) {
+        return res.status(404).json({ message: "Channel not found" });
+      }
+      
+      const membership = await storage.getUnionMembership(channel.unionId, req.userId!);
+      if (!membership) {
+        return res.status(403).json({ message: "You must be a union member to view this session" });
+      }
+      
       const session = await storage.getActiveSession(channelId);
       res.json(session);
     } catch (error: any) {
@@ -452,12 +468,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "No active session found" });
       }
 
-      const channel = await storage.getUnionChannels(channelId);
-      if (channel.length === 0) {
+      const channel = await storage.getChannel(channelId);
+      if (!channel) {
         return res.status(404).json({ message: "Channel not found" });
       }
 
-      if (channel[0].createdBy !== req.userId) {
+      if (channel.createdBy !== req.userId) {
         return res.status(403).json({ message: "Only channel creator can end the session" });
       }
 
@@ -472,6 +488,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/sessions/:sessionId/join", requireAuth, async (req, res) => {
     try {
       const { sessionId } = req.params;
+      
+      const session = await storage.getSession(sessionId);
+      if (!session || !session.isActive) {
+        return res.status(404).json({ message: "Session not found or inactive" });
+      }
+      
+      const channel = await storage.getChannel(session.channelId);
+      if (!channel) {
+        return res.status(404).json({ message: "Channel not found" });
+      }
+      
+      const membership = await storage.getUnionMembership(channel.unionId, req.userId!);
+      if (!membership) {
+        return res.status(403).json({ message: "You must be a union member to join this session" });
+      }
+      
       const participant = await storage.joinSession(sessionId, req.userId!);
       res.json(participant);
     } catch (error: any) {

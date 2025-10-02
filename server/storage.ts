@@ -111,6 +111,7 @@ export interface IStorage {
   
   // Voice/Video Sessions
   createSession(channelId: string, sessionToken: string, roomUrl: string, roomName: string): Promise<ChannelSession>;
+  getSession(sessionId: string): Promise<ChannelSession | null>;
   getActiveSession(channelId: string): Promise<ChannelSession | null>;
   endSession(sessionId: string): Promise<void>;
   joinSession(sessionId: string, userId: string): Promise<SessionParticipant>;
@@ -628,6 +629,10 @@ export class MemStorage implements IStorage {
   }
 
   // Voice/Video Sessions
+  async getSession(sessionId: string): Promise<ChannelSession | null> {
+    return this.channelSessions.get(sessionId) || null;
+  }
+
   async createSession(channelId: string, sessionToken: string, roomUrl: string, roomName: string): Promise<ChannelSession> {
     const session: ChannelSession = {
       id: randomUUID(),
@@ -668,6 +673,21 @@ export class MemStorage implements IStorage {
   }
 
   async joinSession(sessionId: string, userId: string): Promise<SessionParticipant> {
+    const existingParticipant = Array.from(this.sessionParticipants.values())
+      .find(p => p.sessionId === sessionId && p.userId === userId);
+
+    if (existingParticipant) {
+      if (existingParticipant.isActive) {
+        return existingParticipant;
+      } else {
+        existingParticipant.isActive = true;
+        existingParticipant.leftAt = null;
+        existingParticipant.joinedAt = new Date();
+        this.sessionParticipants.set(existingParticipant.id, existingParticipant);
+        return existingParticipant;
+      }
+    }
+
     const participant: SessionParticipant = {
       id: randomUUID(),
       sessionId,
@@ -1071,6 +1091,13 @@ export class DbStorage implements IStorage {
   }
 
   // Voice/Video Sessions
+  async getSession(sessionId: string): Promise<ChannelSession | null> {
+    const result = await db.select().from(schema.channelSessions)
+      .where(eq(schema.channelSessions.id, sessionId))
+      .limit(1);
+    return result[0] || null;
+  }
+
   async createSession(channelId: string, sessionToken: string, roomUrl: string, roomName: string): Promise<ChannelSession> {
     const result = await db.insert(schema.channelSessions).values({
       channelId,
@@ -1111,6 +1138,29 @@ export class DbStorage implements IStorage {
   }
 
   async joinSession(sessionId: string, userId: string): Promise<SessionParticipant> {
+    const existingParticipant = await db.select().from(schema.sessionParticipants)
+      .where(and(
+        eq(schema.sessionParticipants.sessionId, sessionId),
+        eq(schema.sessionParticipants.userId, userId)
+      ))
+      .limit(1);
+
+    if (existingParticipant[0]) {
+      if (existingParticipant[0].isActive) {
+        return existingParticipant[0];
+      } else {
+        const reactivated = await db.update(schema.sessionParticipants)
+          .set({
+            isActive: true,
+            leftAt: null,
+            joinedAt: new Date()
+          })
+          .where(eq(schema.sessionParticipants.id, existingParticipant[0].id))
+          .returning();
+        return reactivated[0];
+      }
+    }
+
     const result = await db.insert(schema.sessionParticipants).values({
       sessionId,
       userId
