@@ -28,14 +28,19 @@ if (process.env.SUPABASE_URL && process.env.SUPABASE_DB_PASSWORD) {
       max: 10,
       idle_timeout: 20,
       connect_timeout: 10,
-      options: 'search_path=public'
+      onconnect: async (connection) => {
+        await connection`SET search_path TO public`;
+      }
     });
     
     db = drizzle(client, { schema });
     
     // Test the connection
-    client`SELECT 1`.then(() => {
+    client`SELECT 1`.then(async () => {
       console.log('✅ Supabase PostgreSQL connected successfully!');
+      // Verify search_path is set
+      const result = await client`SHOW search_path`;
+      console.log('📍 Search path:', result[0].search_path);
     }).catch((err) => {
       console.error('❌ Supabase connection test failed:', err.message);
       console.log('\n📋 TROUBLESHOOTING STEPS:');
