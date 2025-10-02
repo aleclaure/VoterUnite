@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { DailyProvider, DailyVideo, useDaily, useParticipantIds, useLocalParticipant, useParticipantProperty, useScreenShare } from '@daily-co/daily-react';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Video, VideoOff, Mic, MicOff, MonitorUp, PhoneOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -90,6 +90,8 @@ function VideoRoomContent({ onLeave, connectionState, error }: VideoRoomContentP
   const [isCameraOn, setIsCameraOn] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+  
+  const isMobileBrowser = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
   useEffect(() => {
     console.log('[VideoRoom] Participants changed:', {
@@ -161,6 +163,23 @@ function VideoRoomContent({ onLeave, connectionState, error }: VideoRoomContentP
 
       {connectionState === 'connected' && (
         <>
+          {isMobileBrowser && (
+            <Card className="mb-4 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <div className="text-blue-600 dark:text-blue-400 text-2xl">💡</div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                      If you are having trouble connecting to the call, refresh the webpage or restart the app and rejoin the call granting voice and/or video permissions again
+                    </p>
+                    <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                      Video calls work best on desktop browsers or our mobile app
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {displayedParticipants.map((id) => (
               <VideoTile
@@ -251,8 +270,14 @@ export default function VideoRoom({ roomUrl, onLeave }: VideoRoomProps) {
   const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'error'>('connecting');
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
+  
+  // Detect mobile browsers (especially iOS Safari)
+  const isMobileBrowser = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  const isSafariMobile = /iPhone|iPad|iPod/.test(navigator.userAgent) && /Safari/.test(navigator.userAgent);
 
   useEffect(() => {
+    let daily: any = null;
+    
     const initializeDaily = async () => {
       try {
         console.log('🎥 [VideoRoom] Requesting camera/mic permissions...');
@@ -261,11 +286,12 @@ export default function VideoRoom({ roomUrl, onLeave }: VideoRoomProps) {
           audioTracks: stream.getAudioTracks().length,
           videoTracks: stream.getVideoTracks().length,
         });
+        stream.getTracks().forEach(track => track.stop());
         
         const DailyIframe = (await import('@daily-co/daily-js')).default;
         console.log('📦 [VideoRoom] Daily.co library loaded');
         
-        const daily = DailyIframe.createCallObject({
+        daily = DailyIframe.createCallObject({
           audioSource: true,
           videoSource: true,
         });
@@ -287,14 +313,6 @@ export default function VideoRoom({ roomUrl, onLeave }: VideoRoomProps) {
             });
           });
           
-          // Ensure camera is started after joining
-          try {
-            console.log('📹 [VideoRoom] Starting camera...');
-            const cameraResult = await daily.startCamera();
-            console.log('✅ [VideoRoom] Camera started:', cameraResult);
-          } catch (err) {
-            console.error('❌ [VideoRoom] Failed to start camera:', err);
-          }
           setConnectionState('connected');
           setError(null);
         });
@@ -308,6 +326,14 @@ export default function VideoRoom({ roomUrl, onLeave }: VideoRoomProps) {
             id: event?.participant?.session_id,
             video: event?.participant?.tracks?.video?.state,
             audio: event?.participant?.tracks?.audio?.state
+          });
+        });
+
+        daily.on('track-started', (event: any) => {
+          console.log('🎬 [VideoRoom] Track started:', {
+            participant: event?.participant?.session_id,
+            trackType: event?.track?.kind,
+            trackState: event?.track?.readyState
           });
         });
 
@@ -354,21 +380,33 @@ export default function VideoRoom({ roomUrl, onLeave }: VideoRoomProps) {
     initializeDaily();
 
     return () => {
-      // Cleanup uses the daily instance directly, not state
-      if (dailyInstance) {
+      // Cleanup - use local daily variable, not state
+      if (daily) {
         console.log('🧹 [VideoRoom] Cleaning up Daily instance');
-        dailyInstance.leave().catch((err: any) => console.error('Error leaving:', err));
-        dailyInstance.destroy().catch((err: any) => console.error('Error destroying:', err));
+        daily.leave().catch((err: any) => console.error('Error leaving:', err));
+        daily.destroy().catch((err: any) => console.error('Error destroying:', err));
       }
     };
-  }, [roomUrl, dailyInstance]);
+  }, [roomUrl, user?.email]);
 
   if (!dailyInstance) {
     return (
       <Card className="w-full max-w-6xl mx-auto p-8">
-        <div className="text-center">
+        <div className="text-center space-y-4">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2" />
           <p className="text-sm text-muted-foreground">Initializing video room...</p>
+          {isSafariMobile && (
+            <div className="bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-400 text-yellow-800 dark:text-yellow-200 px-4 py-3 rounded relative">
+              <p className="font-medium">⚠️ Limited Mobile Support</p>
+              <p className="text-sm mt-1">
+                Video calls may not work properly on mobile browsers. For the best experience:
+              </p>
+              <ul className="text-sm mt-2 text-left list-disc list-inside">
+                <li>Use a desktop browser (Chrome, Firefox, Safari)</li>
+                <li>Or download our mobile app for full video support</li>
+              </ul>
+            </div>
+          )}
         </div>
       </Card>
     );
