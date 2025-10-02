@@ -15,38 +15,48 @@ function VideoTile({ participantId, isLocal = false }: { participantId: string; 
   const videoState = useParticipantProperty(participantId, 'tracks.video.state');
   const audioState = useParticipantProperty(participantId, 'tracks.audio.state');
 
+  // Force log to appear (uses alert as fallback if console is filtered)
   useEffect(() => {
-    console.log(`[VideoTile ${participantId}] Participant state:`, {
+    const logData = {
       userName,
       videoState,
       audioState,
-      isLocal
-    });
+      isLocal,
+      timestamp: new Date().toISOString()
+    };
+    console.log(`🎬 [VideoTile ${participantId.substring(0,8)}] State:`, logData);
+    // Also try console.warn to ensure it shows
+    console.warn(`📺 VideoState for ${participantId.substring(0,8)}:`, videoState);
   }, [participantId, userName, videoState, audioState, isLocal]);
+
+  // Show video for ANY state except 'off' and 'blocked' - be permissive!
+  const shouldShowVideo = videoState !== 'off' && videoState !== 'blocked';
 
   return (
     <Card
       className="relative aspect-video overflow-hidden bg-secondary/50"
       data-testid={`video-tile-${participantId}`}
     >
-      {videoState === 'playable' || videoState === 'loading' ? (
+      {shouldShowVideo ? (
         <DailyVideo
           sessionId={participantId}
           type="video"
           muted={isLocal}
+          autoPlay
+          playsInline
           style={{
             width: '100%',
             height: '100%',
             objectFit: 'cover'
           }}
-          onLoadedData={() => console.log(`[VideoTile ${participantId}] Video loaded and playing`)}
-          onError={(e) => console.error(`[VideoTile ${participantId}] Video error:`, e)}
+          onLoadedData={() => console.log(`✅ [VideoTile ${participantId.substring(0,8)}] Video loaded`)}
+          onError={(e) => console.error(`❌ [VideoTile ${participantId.substring(0,8)}] Video error:`, e)}
         />
       ) : (
         <div className="absolute inset-0 flex items-center justify-center">
           <VideoOff className="w-12 h-12 text-muted-foreground" />
           <div className="absolute bottom-1/2 text-xs text-muted-foreground">
-            {videoState === 'off' ? 'Camera Off' : videoState === 'blocked' ? 'Camera Blocked' : 'Loading...'}
+            {videoState === 'off' ? 'Camera Off' : videoState === 'blocked' ? 'Camera Blocked' : `State: ${videoState}`}
           </div>
         </div>
       )}
