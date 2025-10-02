@@ -424,6 +424,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const existingSession = await storage.getActiveSession(channelId);
       if (existingSession) {
         const participant = await storage.joinSession(existingSession.id, req.userId!);
+        console.log('Returning existing session:', JSON.stringify({ session: existingSession, participant }, null, 2));
         return res.json({ session: existingSession, participant });
       }
 
@@ -431,6 +432,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const session = await storage.createSession(channelId, sessionToken, roomUrl, roomName);
       const participant = await storage.joinSession(session.id, req.userId!);
 
+      console.log('Returning new session:', JSON.stringify({ session, participant }, null, 2));
       res.json({ session, participant });
     } catch (error: any) {
       console.error("Create/join session error:", error);
