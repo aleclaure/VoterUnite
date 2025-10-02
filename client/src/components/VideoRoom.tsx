@@ -48,45 +48,21 @@ function VideoTile({ participantId, isLocal = false }: { participantId: string; 
   );
 }
 
-function VideoRoomContent({ onLeave }: { onLeave: () => void }) {
+interface VideoRoomContentProps {
+  onLeave: () => void;
+  connectionState: 'connecting' | 'connected' | 'error';
+  error: string | null;
+}
+
+function VideoRoomContent({ onLeave, connectionState, error }: VideoRoomContentProps) {
   const daily = useDaily();
   const { user } = useAuth();
   const participantIds = useParticipantIds();
   const localParticipant = useLocalParticipant();
   const { screens, startScreenShare, stopScreenShare } = useScreenShare();
-  const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'error'>('connecting');
   const [isCameraOn, setIsCameraOn] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
-
-  useEffect(() => {
-    if (!daily) return;
-
-    const handleJoinedMeeting = () => {
-      setConnectionState('connected');
-      setError(null);
-    };
-
-    const handleError = (event: any) => {
-      setConnectionState('error');
-      setError(event?.errorMsg || 'Failed to connect to video room');
-    };
-
-    const handleLeftMeeting = () => {
-      setConnectionState('connecting');
-    };
-
-    daily.on('joined-meeting', handleJoinedMeeting);
-    daily.on('error', handleError);
-    daily.on('left-meeting', handleLeftMeeting);
-
-    return () => {
-      daily.off('joined-meeting', handleJoinedMeeting);
-      daily.off('error', handleError);
-      daily.off('left-meeting', handleLeftMeeting);
-    };
-  }, [daily]);
 
   const toggleCamera = () => {
     if (daily) {
@@ -231,6 +207,8 @@ function VideoRoomContent({ onLeave }: { onLeave: () => void }) {
 
 export default function VideoRoom({ roomUrl, onLeave }: VideoRoomProps) {
   const [dailyInstance, setDailyInstance] = useState<any>(null);
+  const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'error'>('connecting');
+  const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -247,18 +225,25 @@ export default function VideoRoom({ roomUrl, onLeave }: VideoRoomProps) {
           videoSource: true,
         });
 
-        // Add detailed event listeners for debugging
-        daily.on('loading', () => console.log('Daily: loading'));
-        daily.on('loaded', () => console.log('Daily: loaded'));
-        daily.on('joining-meeting', () => console.log('Daily: joining meeting'));
-        daily.on('joined-meeting', () => console.log('Daily: joined meeting!'));
-        daily.on('error', (e) => console.error('Daily error:', e));
+        // Attach event listeners BEFORE joining
+        daily.on('joined-meeting', () => {
+          console.log('Daily: joined meeting!');
+          setConnectionState('connected');
+          setError(null);
+        });
 
-        // Set instance first so event listeners can be attached
+        daily.on('error', (e: any) => {
+          console.error('Daily error:', e);
+          setConnectionState('error');
+          setError(e?.errorMsg || 'Failed to connect to video room');
+        });
+
+        daily.on('left-meeting', () => {
+          console.log('Daily: left meeting');
+          setConnectionState('connecting');
+        });
+
         setDailyInstance(daily);
-
-        // Wait a tick for React to update and listeners to attach
-        await new Promise(resolve => setTimeout(resolve, 100));
 
         console.log('Joining Daily room:', roomUrl);
         const joinResult = await daily.join({
@@ -270,18 +255,12 @@ export default function VideoRoom({ roomUrl, onLeave }: VideoRoomProps) {
         console.error('Failed to initialize/join:', err);
         console.error('Error details:', { name: err.name, message: err.message, stack: err.stack });
         
-        // Create a minimal daily instance to show error state
-        const DailyIframe = (await import('@daily-co/daily-js')).default;
-        const daily = DailyIframe.createCallObject();
-        setDailyInstance(daily);
-        // Trigger error event
-        setTimeout(() => {
-          daily.emit('error', { 
-            errorMsg: err.name === 'NotAllowedError' 
-              ? 'Camera/microphone permission denied. Please allow access and try again.' 
-              : `Failed to join video room: ${err.message || 'Unknown error'}`
-          });
-        }, 100);
+        setConnectionState('error');
+        setError(
+          err.name === 'NotAllowedError' 
+            ? 'Camera/microphone permission denied. Please allow access and try again.' 
+            : `Failed to join video room: ${err.message || 'Unknown error'}`
+        );
       }
     };
 
@@ -308,7 +287,11 @@ export default function VideoRoom({ roomUrl, onLeave }: VideoRoomProps) {
 
   return (
     <DailyProvider callObject={dailyInstance}>
-      <VideoRoomContent onLeave={onLeave} />
+      <VideoRoomContent 
+        onLeave={onLeave}
+        connectionState={connectionState}
+        error={error}
+      />
     </DailyProvider>
   );
 }

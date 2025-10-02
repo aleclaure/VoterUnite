@@ -50,42 +50,18 @@ function ParticipantItem({ participantId }: { participantId: string }) {
   );
 }
 
-function VoiceRoomContent({ onLeave }: { onLeave: () => void }) {
+interface VoiceRoomContentProps {
+  onLeave: () => void;
+  connectionState: 'connecting' | 'connected' | 'error';
+  error: string | null;
+}
+
+function VoiceRoomContent({ onLeave, connectionState, error }: VoiceRoomContentProps) {
   const daily = useDaily();
   const { user } = useAuth();
   const participantIds = useParticipantIds();
   const localParticipant = useLocalParticipant();
-  const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'error'>('connecting');
   const [isMuted, setIsMuted] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!daily) return;
-
-    const handleJoinedMeeting = () => {
-      setConnectionState('connected');
-      setError(null);
-    };
-
-    const handleError = (event: any) => {
-      setConnectionState('error');
-      setError(event?.errorMsg || 'Failed to connect to voice room');
-    };
-
-    const handleLeftMeeting = () => {
-      setConnectionState('connecting');
-    };
-
-    daily.on('joined-meeting', handleJoinedMeeting);
-    daily.on('error', handleError);
-    daily.on('left-meeting', handleLeftMeeting);
-
-    return () => {
-      daily.off('joined-meeting', handleJoinedMeeting);
-      daily.off('error', handleError);
-      daily.off('left-meeting', handleLeftMeeting);
-    };
-  }, [daily]);
 
   const toggleMute = () => {
     if (daily) {
@@ -210,6 +186,8 @@ function VoiceRoomContent({ onLeave }: { onLeave: () => void }) {
 
 export default function VoiceRoom({ roomUrl, onLeave }: VoiceRoomProps) {
   const [dailyInstance, setDailyInstance] = useState<any>(null);
+  const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'error'>('connecting');
+  const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -226,11 +204,25 @@ export default function VoiceRoom({ roomUrl, onLeave }: VoiceRoomProps) {
           videoSource: false,
         });
 
-        // Set instance first so event listeners can be attached
-        setDailyInstance(daily);
+        // Attach event listeners BEFORE joining
+        daily.on('joined-meeting', () => {
+          console.log('Daily: joined meeting!');
+          setConnectionState('connected');
+          setError(null);
+        });
 
-        // Wait a tick for React to update and listeners to attach
-        await new Promise(resolve => setTimeout(resolve, 100));
+        daily.on('error', (e: any) => {
+          console.error('Daily error:', e);
+          setConnectionState('error');
+          setError(e?.errorMsg || 'Failed to connect to voice room');
+        });
+
+        daily.on('left-meeting', () => {
+          console.log('Daily: left meeting');
+          setConnectionState('connecting');
+        });
+
+        setDailyInstance(daily);
 
         console.log('Joining Daily room:', roomUrl);
         const joinResult = await daily.join({
@@ -244,18 +236,12 @@ export default function VoiceRoom({ roomUrl, onLeave }: VoiceRoomProps) {
         console.error('Error message:', err.message);
         console.error('Error stack:', err.stack);
         
-        // Create a minimal daily instance to show error state
-        const DailyIframe = (await import('@daily-co/daily-js')).default;
-        const daily = DailyIframe.createCallObject();
-        setDailyInstance(daily);
-        // Trigger error event
-        setTimeout(() => {
-          daily.emit('error', { 
-            errorMsg: err.name === 'NotAllowedError' 
-              ? 'Microphone permission denied. Please allow microphone access and try again.' 
-              : `Failed to join voice room: ${err.message || 'Unknown error'}`
-          });
-        }, 100);
+        setConnectionState('error');
+        setError(
+          err.name === 'NotAllowedError' 
+            ? 'Microphone permission denied. Please allow microphone access and try again.' 
+            : `Failed to join voice room: ${err.message || 'Unknown error'}`
+        );
       }
     };
 
@@ -284,7 +270,11 @@ export default function VoiceRoom({ roomUrl, onLeave }: VoiceRoomProps) {
 
   return (
     <DailyProvider callObject={dailyInstance}>
-      <VoiceRoomContent onLeave={onLeave} />
+      <VoiceRoomContent 
+        onLeave={onLeave} 
+        connectionState={connectionState}
+        error={error}
+      />
     </DailyProvider>
   );
 }
