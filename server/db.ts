@@ -44,6 +44,56 @@ if (process.env.SUPABASE_URL && process.env.SUPABASE_DB_PASSWORD) {
       // Verify search_path is set
       const result = await client`SHOW search_path`;
       console.log('📍 Search path:', result[0].search_path);
+      
+      // Test if channel_sessions table exists, create if missing
+      try {
+        const tableCheck = await client`
+          SELECT table_schema, table_name 
+          FROM information_schema.tables 
+          WHERE table_name = 'channel_sessions'
+        `;
+        
+        if (tableCheck.length === 0) {
+          console.log('📋 Creating channel_sessions and session_participants tables...');
+          
+          // Create tables separately
+          await client`
+            CREATE TABLE IF NOT EXISTS public.channel_sessions (
+              id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::VARCHAR,
+              channel_id VARCHAR NOT NULL,
+              session_token VARCHAR NOT NULL,
+              room_url TEXT NOT NULL,
+              room_name VARCHAR NOT NULL,
+              started_at TIMESTAMP DEFAULT NOW() NOT NULL,
+              ended_at TIMESTAMP,
+              is_active BOOLEAN DEFAULT true NOT NULL
+            )
+          `;
+          
+          await client`
+            CREATE TABLE IF NOT EXISTS public.session_participants (
+              id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid()::VARCHAR,
+              session_id VARCHAR NOT NULL REFERENCES public.channel_sessions(id) ON DELETE CASCADE,
+              user_id UUID NOT NULL,
+              joined_at TIMESTAMP DEFAULT NOW() NOT NULL,
+              left_at TIMESTAMP,
+              is_active BOOLEAN DEFAULT true NOT NULL,
+              is_muted BOOLEAN DEFAULT false NOT NULL,
+              is_video_on BOOLEAN DEFAULT false NOT NULL
+            )
+          `;
+          
+          await client`CREATE INDEX IF NOT EXISTS idx_channel_sessions_channel ON public.channel_sessions(channel_id)`;
+          await client`CREATE INDEX IF NOT EXISTS idx_session_participants_session ON public.session_participants(session_id)`;
+          await client`CREATE INDEX IF NOT EXISTS idx_session_participants_user ON public.session_participants(user_id)`;
+          
+          console.log('✅ Session tables created successfully!');
+        } else {
+          console.log('✅ Session tables already exist');
+        }
+      } catch (err: any) {
+        console.error('❌ Error with session tables:', err.message);
+      }
     }).catch((err) => {
       console.error('❌ Supabase connection test failed:', err.message);
       console.log('\n📋 TROUBLESHOOTING STEPS:');
