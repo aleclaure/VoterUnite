@@ -1,0 +1,185 @@
+Discord-Style Voice & Video Features - Implementation
+Plan
+•* Vision
+Transform union discussion pages into full-featured
+Discord-like spaces with text, voice, and video channels for comprehensive political organizing and collaboration.
+Phase 1: Enhanced Channel Creation UI
+1.1 Multi-Type Channel Selector
+Current State: Simple text input for channel name
+New Design:
+• Channel Type Dropdown with icons:
+• (* Text Channel (default)
+• • Voice Room
+• i Video Room
+
+Channel Configuration per type:
+• Text: Description field
+• Voice: Max participants (default: 25)
+• Video: Max participants (default: 10), Enable screen share toggle
+1.2 Visual Channel Indicators
+General (text)
+0
+• Voice Chat (3 active)
+
+Strategy Meeting (5/10)
+
+Announcements (text)
+
+Phase 2: Voice & Video Intrastructure
+2.1 Technology Options
+Option A: Daily.co
+Recommended
+• Pros: Easy React SDK, free tier, built for this use case
+• Setup: Replit integration available for API key management
+• Features: Voice, video, screen share, recording
+Option B: Agora.io
+• Pros: Scalable, good docs
+• Cons: More complex setup
+Option C: Twilio Video
+• Pros: Reliable, well-documented
+• Cons: Higher cost
+
+2.2 Core Features by Channel Type
+Voice Channels /
+• Audio-only communication
+• Push-to-talk option
+• Mute/unmute controls
+• Active speakers indicator
+• Background noise suppression
+• Participant list with audio levels
+Video Channels ni
+• Audio + video streaming
+• Camera on/off toggle
+• Screen sharing capability
+• Grid/speaker view toggle
+• Virtual backgrounds (future)
+• Recording capability (admin only)
+
+Phase 3: Database & Schema Updates
+3.1 New Tables Needed
+-- Active Voice/Video Sessions
+CREATE TABLE channel_ sessions ( ia VARCHAR PRIMARY KEY, channel_id VARCHAR NOT NULL, session_token VARCHAR NOT NULL, room_url TEXT,
+started_at TIMESTAMP DEFAULT NOW(), ended_at TIMESTAMP,
+is_active BOOLEAN DEFAULT true
+);
+
+-- Session Participants
+CREATE TABLE session_participants (
+id VARCHAR PRIMARY KEY, session_id VARCHAR NOT NULL, user_id UUID NOT NULL, joined_at TIMESTAMP DEFAULT NOW(), left_at TIMESTAMP,
+is_active BOOLEAN DEFAULT true, is_muted BOOLEAN DEFAULT false, is_ video_on BOOLEAN DEFAULT false
+);
+3.2 Schema Already Supports
+• union_channels.channel_type V (text/voice/video)
+• Just need to utilize existing column
+
+Phase 4: Frontend Implementation
+4.1 Web UI Components
+Channel Creation Modal:
+<Select>
+«SelectItem value="text">
+<Hash /> Text Channel
+</SelectItem>
+«SelectItem value="voice">
+‹Mic /> Voice Room
+</SelectItem>
+«SelectItem value="video">
+<Video /> Video Room
+</SelectItem>
+</ Select>
+
+Voice/Video Room Component:
+• Floating participant panel
+• Control bar (mute, video, screen share, leave)
+• Active speaker highlighting
+• Connection status indicators
+4.2 Mobile UI (React Native)
+Considerations:
+• Use react-native-webrtc for WebRTC support
+• Native permission handling (mic, camera)
+• Battery optimization for long calls
+• Background audio support
+
+Phase 5: User Experience Flow
+5.1 Joining Voice/Video Channels
+User Flow:
+1. Click voice/video channel in sidebar
+2. See "Join Room" button with participant count
+3. Permission prompts (mic/camera)
+4. Enter room with controls visible
+5. See other participants
+Active Session Indicators:
+• Voice Chat (3 active) - Shows live O count
+I Strategy Meeting (LIVE) - Visual indicator
+
+5.2 Room Controls
+Voice Room Controls:
+• • Mute/Unmute
+Speaker volume
+• Share invite link
+Leave room
+Video Room Controls:
+• / Mute/Unmute
+• i Camera on/off
+• → Share screen
+• I Participant list
+Leave room
+
+Phase 6: Advanced Features (Future)
+6.1 Moderation & Permissions
+• Channel admins can mute/unmute users
+• Role-based access (organizer, member)
+• Kick/ban functionality
+• Recording permissions
+6.2 Integrations
+• Calendar scheduling for video rooms
+• Recording storage (Supabase Storage)
+• Transcription services
+• Breakout rooms
+• Hand raising for organized discussions
+6.3 Analytics
+• Channel activity metrics
+• Peak usage times
+• Participant engagement
+• Recording views
+
+Implementation Roadmap
+Sprint 1: Foundation (1-2 weeks)
+• V Enhanced channel creation UI with type selector Visual indicators for channel types
+Database schema updates
+Sprint 2: Voice Implementation (2-3 weeks)
+• / Integrate Daily.co or chosen provider
+• / Voice room UI components (web)
+• • Basic controls (mute, leave)
+• / Participant list
+Sprint 3: Video Implementation (2-3 weeks)
+• Tai Video room UI components (web)
+• Tai Camera controls
+• Tai Screen sharing
+• i Grid/speaker layouts
+
+Sprint 4: Mobile Support (2-3 weeks)
+React Native WebRTC setup
+Mobile UI for voice/video
+Permission handling
+Background audio
+Sprint 5: Polish & Advanced (2-3 weeks)
+Recording capability
+• %.
+Moderation tools
++ Calendar integration
+• Y.
+Analytics dashboard
+Technical Considerations
+Security
+• End-to-end encryption for video calls
+• Token-based room access
+• RLS policies for session data
+
+Pertormance
+• Adaptive bitrate for varying network conditions
+• Echo cancellation
+• Noise suppression
+Scalability
+• CDN for global reach
+• Load balancing for high traffic
+• Session cleanup (auto-close after 24h inactive)
