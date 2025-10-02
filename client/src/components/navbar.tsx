@@ -1,11 +1,13 @@
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { LogOut, User } from "lucide-react";
+import { LogOut, User, Menu, X } from "lucide-react";
+import { useState } from "react";
 
 export default function Navbar() {
   const [location] = useLocation();
   const { user, signOut, loading } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navItems = [
     { href: "/unions", label: "Unions" },
@@ -55,6 +57,7 @@ export default function Navbar() {
                     <Button
                       variant="outline"
                       onClick={() => signOut()}
+                      className="hidden sm:flex"
                       data-testid="button-signout"
                     >
                       <LogOut className="w-4 h-4 sm:mr-2" />
@@ -69,14 +72,88 @@ export default function Navbar() {
                       </Button>
                     </Link>
                     <Link href="/sign-up">
-                      <Button data-testid="button-signup-nav">Get Started</Button>
+                      <Button className="hidden sm:flex" data-testid="button-signup-nav">Get Started</Button>
                     </Link>
                   </>
                 )}
               </>
             )}
+            
+            {/* Mobile menu button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              data-testid="button-mobile-menu"
+            >
+              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </Button>
           </div>
         </div>
+
+        {/* Mobile menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-border">
+            <div className="px-2 pt-2 pb-3 space-y-1">
+              {navItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <Button
+                    variant={location === item.href ? "secondary" : "ghost"}
+                    className="w-full justify-start"
+                    data-testid={`mobile-nav-${item.label.toLowerCase()}`}
+                  >
+                    {item.label}
+                  </Button>
+                </Link>
+              ))}
+              
+              {!loading && (
+                <>
+                  {user ? (
+                    <>
+                      <Link href="/profile" onClick={() => setMobileMenuOpen(false)}>
+                        <Button variant="ghost" className="w-full justify-start" data-testid="mobile-nav-profile">
+                          <User className="w-4 h-4 mr-2" />
+                          Profile
+                        </Button>
+                      </Link>
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-start"
+                        onClick={() => {
+                          signOut();
+                          setMobileMenuOpen(false);
+                        }}
+                        data-testid="mobile-nav-signout"
+                      >
+                        <LogOut className="w-4 h-4 mr-2" />
+                        Sign Out
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Link href="/sign-in" onClick={() => setMobileMenuOpen(false)}>
+                        <Button variant="ghost" className="w-full justify-start" data-testid="mobile-nav-signin">
+                          Sign In
+                        </Button>
+                      </Link>
+                      <Link href="/sign-up" onClick={() => setMobileMenuOpen(false)}>
+                        <Button className="w-full justify-start" data-testid="mobile-nav-signup">
+                          Get Started
+                        </Button>
+                      </Link>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </nav>
   );
