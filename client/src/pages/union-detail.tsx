@@ -11,10 +11,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { MessageSquare, Plus, Hash, ArrowUp, ArrowDown, MessageCircle, Mic, Video, Menu, X } from "lucide-react";
+import { MessageSquare, Plus, Hash, ArrowUp, ArrowDown, MessageCircle, Mic, Video, Menu, X, Users } from "lucide-react";
+import VoiceRoom from "@/components/VoiceRoom";
+import VideoRoom from "@/components/VideoRoom";
+import type { ChannelSession } from "@shared/schema";
 
 export default function UnionDetail() {
   const [, params] = useRoute("/unions/:id");
@@ -29,6 +33,8 @@ export default function UnionDetail() {
   const [isChannelDialogOpen, setIsChannelDialogOpen] = useState(false);
   const [isPostDialogOpen, setIsPostDialogOpen] = useState(false);
   const [showChannelList, setShowChannelList] = useState(false);
+  const [activeRoom, setActiveRoom] = useState<{ type: 'voice' | 'video', roomUrl: string, sessionId: string } | null>(null);
+  const [joiningChannelId, setJoiningChannelId] = useState<string | null>(null);
 
   const { data: union, isLoading } = useQuery({
     queryKey: ["/api/unions", unionId],
@@ -93,6 +99,52 @@ export default function UnionDetail() {
     },
   });
 
+  const joinRoomMutation = useMutation({
+    mutationFn: async ({ channelId, channelType }: { channelId: string; channelType: 'voice' | 'video' }) => {
+      const response = await apiRequest(`/api/channels/${channelId}/session`, {
+        method: "POST",
+        body: {},
+      });
+      return { ...response, channelType };
+    },
+    onSuccess: (data: any) => {
+      setActiveRoom({
+        type: data.channelType,
+        roomUrl: data.roomUrl,
+        sessionId: data.sessionId,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/channels", data.channelId, "session"] });
+      setJoiningChannelId(null);
+      toast({ title: "Success", description: "Joined room!" });
+    },
+    onError: () => {
+      setJoiningChannelId(null);
+      toast({ title: "Error", description: "Failed to join room", variant: "destructive" });
+    },
+  });
+
+  const handleLeave = async () => {
+    if (!activeRoom) return;
+
+    try {
+      await apiRequest(`/api/sessions/${activeRoom.sessionId}/leave`, {
+        method: "DELETE",
+        body: {},
+      });
+      
+      channels.forEach((channel: any) => {
+        if (channel.channelType !== 'text') {
+          queryClient.invalidateQueries({ queryKey: ["/api/channels", channel.id, "session"] });
+        }
+      });
+      
+      setActiveRoom(null);
+      toast({ title: "Success", description: "Left room" });
+    } catch (error: any) {
+      toast({ title: "Error", description: "Failed to leave room", variant: "destructive" });
+    }
+  };
+
   // Auto-select first channel if none selected (MUST be before early returns!)
   useEffect(() => {
     if (channels.length > 0 && !selectedChannel) {
@@ -128,6 +180,90 @@ export default function UnionDetail() {
     housing: "hsl(221, 83%, 53%)",
     healthcare: "hsl(262, 83%, 58%)",
   };
+
+  function ChannelItem({ channel }: { channel: any }) {
+    const { data: session } = useQuery<ChannelSession & { participantCount?: number }>({
+      queryKey: ["/api/channels", channel.id, "session"],
+      enabled: channel.channelType !== 'text',
+      refetchInterval: channel.channelType !== 'text' ? 10000 : false,
+    });
+
+    const ChannelIcon = channel.channelType === 'voice' ? Mic : channel.channelType === 'video' ? Video : Hash;
+    const isVoiceOrVideo = channel.channelType === 'voice' || channel.channelType === 'video';
+    const isJoining = joiningChannelId === channel.id;
+
+    const handleJoinRoom = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setJoiningChannelId(channel.id);
+      joinRoomMutation.mutate({ 
+        channelId: channel.id, 
+        channelType: channel.channelType as 'voice' | 'video' 
+      });
+    };
+
+    return (
+      <div
+        className={`w-full rounded-md text-sm transition-colors ${
+          selectedChannel === channel.id && !isVoiceOrVideo
+            ? "bg-primary text-primary-foreground"
+            : ""
+        }`}
+      >
+        <button
+          onClick={() => {
+            if (!isVoiceOrVideo) {
+              setSelectedChannel(channel.id);
+              setShowChannelList(false);
+            }
+          }}
+          className={`w-full text-left px-3 py-2 rounded-md ${
+            !isVoiceOrVideo && selectedChannel === channel.id
+              ? ""
+              : "hover:bg-muted"
+          }`}
+          data-testid={`channel-${channel.id}`}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <ChannelIcon className="h-4 w-4 flex-shrink-0" />
+              <span className="truncate">{channel.name}</span>
+            </div>
+            {isVoiceOrVideo && session && session.isActive && session.participantCount ? (
+              <Badge variant="secondary" className="text-xs flex-shrink-0">
+                <Users className="h-3 w-3 mr-1" />
+                {session.participantCount}
+              </Badge>
+            ) : null}
+          </div>
+        </button>
+        {isVoiceOrVideo && (
+          <div className="px-3 pb-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={handleJoinRoom}
+              disabled={isJoining}
+              data-testid={`button-join-room-${channel.id}`}
+            >
+              {isJoining ? (
+                "Joining..."
+              ) : (
+                <>
+                  {channel.channelType === 'voice' ? (
+                    <Mic className="h-3 w-3 mr-1" />
+                  ) : (
+                    <Video className="h-3 w-3 mr-1" />
+                  )}
+                  Join Room
+                </>
+              )}
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen py-12">
@@ -327,29 +463,9 @@ export default function UnionDetail() {
                   <CardContent>
                     <ScrollArea className="h-[500px]">
                       <div className="space-y-1">
-                        {channels.map((channel: any) => {
-                          const ChannelIcon = channel.channelType === 'voice' ? Mic : channel.channelType === 'video' ? Video : Hash;
-                          return (
-                            <button
-                              key={channel.id}
-                              onClick={() => {
-                                setSelectedChannel(channel.id);
-                                setShowChannelList(false); // Close channel list on mobile after selection
-                              }}
-                              className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
-                                selectedChannel === channel.id
-                                  ? "bg-primary text-primary-foreground"
-                                  : "hover:bg-muted"
-                              }`}
-                              data-testid={`channel-${channel.id}`}
-                            >
-                              <div className="flex items-center gap-2">
-                                <ChannelIcon className="h-4 w-4" />
-                                {channel.name}
-                              </div>
-                            </button>
-                          );
-                        })}
+                        {channels.map((channel: any) => (
+                          <ChannelItem key={channel.id} channel={channel} />
+                        ))}
                         {channels.length === 0 && (
                           <p className="text-sm text-muted-foreground px-3">No channels yet</p>
                         )}
@@ -455,6 +571,26 @@ export default function UnionDetail() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Voice/Video Room Dialog */}
+      <Dialog open={!!activeRoom} onOpenChange={(open) => !open && handleLeave()}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {activeRoom?.type === 'voice' ? 'Voice Room' : 'Video Room'}
+            </DialogTitle>
+          </DialogHeader>
+          {activeRoom && (
+            <div className="mt-4">
+              {activeRoom.type === 'voice' ? (
+                <VoiceRoom roomUrl={activeRoom.roomUrl} onLeave={handleLeave} />
+              ) : (
+                <VideoRoom roomUrl={activeRoom.roomUrl} onLeave={handleLeave} />
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
