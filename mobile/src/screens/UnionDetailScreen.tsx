@@ -41,30 +41,35 @@ export default function UnionDetailScreen({ route, navigation }: any) {
 
   useEffect(() => {
     if (selectedChannel) {
-      const channel = channels.find(c => c.id === selectedChannel);
-      if (channel) {
-        if (channel.channelType === 'voice') {
-          navigation.navigate('VoiceRoom', { 
-            channelId: channel.id, 
-            channelName: channel.name 
-          });
-          // Reset to first text channel after navigation
-          const firstTextChannel = channels.find(c => c.channelType === 'text');
-          if (firstTextChannel) {
-            setSelectedChannel(firstTextChannel.id);
+      if (selectedChannel === 'all') {
+        // Handle virtual "All Posts" channel
+        fetchPosts();
+      } else {
+        const channel = channels.find(c => c.id === selectedChannel);
+        if (channel) {
+          if (channel.channelType === 'voice') {
+            navigation.navigate('VoiceRoom', { 
+              channelId: channel.id, 
+              channelName: channel.name 
+            });
+            // Reset to first text channel after navigation
+            const firstTextChannel = channels.find(c => c.channelType === 'text');
+            if (firstTextChannel) {
+              setSelectedChannel(firstTextChannel.id);
+            }
+          } else if (channel.channelType === 'video') {
+            navigation.navigate('VideoRoom', { 
+              channelId: channel.id, 
+              channelName: channel.name 
+            });
+            // Reset to first text channel after navigation
+            const firstTextChannel = channels.find(c => c.channelType === 'text');
+            if (firstTextChannel) {
+              setSelectedChannel(firstTextChannel.id);
+            }
+          } else {
+            fetchPosts();
           }
-        } else if (channel.channelType === 'video') {
-          navigation.navigate('VideoRoom', { 
-            channelId: channel.id, 
-            channelName: channel.name 
-          });
-          // Reset to first text channel after navigation
-          const firstTextChannel = channels.find(c => c.channelType === 'text');
-          if (firstTextChannel) {
-            setSelectedChannel(firstTextChannel.id);
-          }
-        } else {
-          fetchPosts();
         }
       }
     }
@@ -441,6 +446,29 @@ export default function UnionDetailScreen({ route, navigation }: any) {
             >
               <Text style={styles.postTitle}>{item.title}</Text>
               <Text style={styles.postContent} numberOfLines={3}>{item.content}</Text>
+              
+              {/* Channel Tags (shown in All Posts view) */}
+              {selectedChannel === 'all' && item.channelTags && item.channelTags.length > 0 && (
+                <View style={styles.postChannelTags}>
+                  {item.channelTags.map((tag: any) => {
+                    const getChannelIcon = () => {
+                      switch (tag.channelType) {
+                        case 'voice': return 'mic';
+                        case 'video': return 'videocam';
+                        default: return 'chatbox';
+                      }
+                    };
+                    
+                    return (
+                      <View key={tag.channelId} style={styles.channelTagBadge}>
+                        <Ionicons name={getChannelIcon()} size={12} color={lightColors.primary} />
+                        <Text style={styles.channelTagText}>{tag.channelName}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+              
               <View style={styles.postMeta}>
                 <View style={styles.postVotes}>
                   <Ionicons name="arrow-up" size={16} color={lightColors.textMuted} />
@@ -883,6 +911,26 @@ const styles = StyleSheet.create({
     color: lightColors.textMuted,
     marginBottom: 12,
     lineHeight: 20,
+  },
+  postChannelTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  channelTagBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: lightColors.primary + '15',
+    borderRadius: 12,
+  },
+  channelTagText: {
+    fontSize: 12,
+    color: lightColors.primary,
+    fontWeight: '500',
   },
   postMeta: {
     flexDirection: 'row',
