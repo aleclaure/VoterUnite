@@ -26,6 +26,8 @@ export default function UnionDetailScreen({ route, navigation }: any) {
   const [newChannelType, setNewChannelType] = useState<'text' | 'voice' | 'video'>('text');
   const [newPostTitle, setNewPostTitle] = useState('');
   const [newPostContent, setNewPostContent] = useState('');
+  const [sortBy, setSortBy] = useState<'trending' | 'top' | 'new'>('trending');
+  const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month' | 'year' | 'all'>('all');
 
   useEffect(() => {
     fetchUnionDetails();
@@ -70,11 +72,16 @@ export default function UnionDetailScreen({ route, navigation }: any) {
 
   useEffect(() => {
     if (channels.length > 0 && !selectedChannel) {
-      // Prefer text channels by default
-      const firstTextChannel = channels.find(c => c.channelType === 'text');
-      setSelectedChannel(firstTextChannel?.id || channels[0].id);
+      // Default to All Posts channel
+      setSelectedChannel('all');
     }
   }, [channels]);
+
+  useEffect(() => {
+    if (selectedChannel === 'all') {
+      fetchPosts();
+    }
+  }, [sortBy, timeRange]);
 
   const fetchUnionDetails = async () => {
     try {
@@ -112,7 +119,19 @@ export default function UnionDetailScreen({ route, navigation }: any) {
   const fetchPosts = async () => {
     if (!selectedChannel) return;
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000'}/api/channels/${selectedChannel}/posts`);
+      let response;
+      if (selectedChannel === 'all') {
+        const params = new URLSearchParams({
+          sortBy,
+          timeRange,
+          channelId: 'all',
+          limit: '50',
+          offset: '0'
+        });
+        response = await fetch(`${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000'}/api/unions/${unionId}/posts?${params}`);
+      } else {
+        response = await fetch(`${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000'}/api/channels/${selectedChannel}/posts`);
+      }
       const data = await response.json();
       setPosts(data);
     } catch (error) {
@@ -276,6 +295,30 @@ export default function UnionDetailScreen({ route, navigation }: any) {
       {/* Channel Tabs */}
       <View style={styles.channelTabs}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.channelScrollView}>
+          {/* All Posts Virtual Channel */}
+          <TouchableOpacity
+            style={[
+              styles.channelTab,
+              selectedChannel === 'all' && styles.channelTabActive,
+            ]}
+            onPress={() => setSelectedChannel('all')}
+          >
+            <View style={styles.channelTabContent}>
+              <Ionicons 
+                name="albums" 
+                size={16} 
+                color={selectedChannel === 'all' ? lightColors.primary : lightColors.textMuted} 
+              />
+              <Text style={[
+                styles.channelTabText,
+                styles.allPostsTabText,
+                selectedChannel === 'all' && styles.channelTabTextActive,
+              ]}>
+                All Posts
+              </Text>
+            </View>
+          </TouchableOpacity>
+
           {channels.map((channel) => {
             const getChannelIcon = () => {
               switch (channel.channelType) {
@@ -321,9 +364,64 @@ export default function UnionDetailScreen({ route, navigation }: any) {
         </ScrollView>
       </View>
 
+      {/* Filter Bar for All Posts */}
+      {selectedChannel === 'all' && (
+        <View style={styles.filterBar}>
+          <View style={styles.filterSection}>
+            <Text style={styles.filterLabel}>Sort:</Text>
+            <View style={styles.filterButtons}>
+              <TouchableOpacity
+                style={[styles.filterButton, sortBy === 'trending' && styles.filterButtonActive]}
+                onPress={() => setSortBy('trending')}
+              >
+                <Text style={[styles.filterButtonText, sortBy === 'trending' && styles.filterButtonTextActive]}>
+                  Trending
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.filterButton, sortBy === 'top' && styles.filterButtonActive]}
+                onPress={() => setSortBy('top')}
+              >
+                <Text style={[styles.filterButtonText, sortBy === 'top' && styles.filterButtonTextActive]}>
+                  Top
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.filterButton, sortBy === 'new' && styles.filterButtonActive]}
+                onPress={() => setSortBy('new')}
+              >
+                <Text style={[styles.filterButtonText, sortBy === 'new' && styles.filterButtonTextActive]}>
+                  New
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          {(sortBy === 'trending' || sortBy === 'top') && (
+            <View style={styles.filterSection}>
+              <Text style={styles.filterLabel}>From:</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={styles.filterButtons}>
+                  {['today', 'week', 'month', 'year', 'all'].map((range) => (
+                    <TouchableOpacity
+                      key={range}
+                      style={[styles.filterButton, timeRange === range && styles.filterButtonActive]}
+                      onPress={() => setTimeRange(range as any)}
+                    >
+                      <Text style={[styles.filterButtonText, timeRange === range && styles.filterButtonTextActive]}>
+                        {range === 'today' ? 'Today' : range === 'week' ? 'Week' : range === 'month' ? 'Month' : range === 'year' ? 'Year' : 'All Time'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+          )}
+        </View>
+      )}
+
       {/* Posts List */}
       <View style={styles.postsContainer}>
-        {user && (
+        {user && selectedChannel !== 'all' && (
           <TouchableOpacity
             style={styles.createPostButton}
             onPress={() => setCreatePostVisible(true)}
@@ -698,10 +796,53 @@ const styles = StyleSheet.create({
     color: lightColors.primary,
     fontWeight: '600',
   },
+  allPostsTabText: {
+    fontWeight: '600',
+  },
   channelTabAdd: {
     paddingVertical: 12,
     paddingHorizontal: 8,
     justifyContent: 'center',
+  },
+  filterBar: {
+    backgroundColor: '#fff',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: lightColors.border,
+    gap: 12,
+  },
+  filterSection: {
+    gap: 8,
+  },
+  filterLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: lightColors.text,
+  },
+  filterButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  filterButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: lightColors.background,
+    borderWidth: 1,
+    borderColor: lightColors.border,
+  },
+  filterButtonActive: {
+    backgroundColor: lightColors.primary,
+    borderColor: lightColors.primary,
+  },
+  filterButtonText: {
+    fontSize: 14,
+    color: lightColors.text,
+    fontWeight: '500',
+  },
+  filterButtonTextActive: {
+    color: '#fff',
+    fontWeight: '600',
   },
   postsContainer: {
     flex: 1,
