@@ -7,7 +7,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { ArrowUp, ArrowDown, MessageCircle, Reply, ChevronLeft } from "lucide-react";
+import { ArrowUp, ArrowDown, MessageCircle, Reply, ChevronLeft, Hash, Mic, Video, Plus, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Comment {
   id: string;
@@ -158,7 +161,20 @@ export default function PostDetail() {
     enabled: !!postId,
   });
 
+  const { data: postChannels = [] } = useQuery({
+    queryKey: ["/api/posts", postId, "channels"],
+    enabled: !!postId,
+  });
+
+  const { data: allChannels = [] } = useQuery({
+    queryKey: ["/api/unions", post?.unionId, "channels"],
+    enabled: !!post?.unionId,
+  });
+
   const topLevelComments = allComments.filter((c) => !c.parentCommentId);
+  const isAuthor = user && post && user.id === post.authorId;
+  const textChannels = allChannels.filter((c: any) => c.channelType === 'text');
+  const untaggedChannels = textChannels.filter((c: any) => !postChannels.some((pc: any) => pc.id === c.id));
 
   const commentMutation = useMutation({
     mutationFn: async (content: string) => {
@@ -170,6 +186,7 @@ export default function PostDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/posts", postId, "comments"] });
       queryClient.invalidateQueries({ queryKey: ["/api/posts", postId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/unions", post?.unionId, "posts"] });
       setNewComment("");
       toast({ title: "Comment posted!" });
     },
@@ -187,6 +204,39 @@ export default function PostDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/posts", postId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/unions", post?.unionId, "posts"] });
+    },
+  });
+
+  const tagChannelMutation = useMutation({
+    mutationFn: async (channelId: string) => {
+      return await apiRequest(`/api/posts/${postId}/channels/${channelId}`, {
+        method: "POST",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/posts", postId, "channels"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/unions", post?.unionId, "posts"] });
+      toast({ title: "Channel tagged!" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to tag channel", variant: "destructive" });
+    },
+  });
+
+  const untagChannelMutation = useMutation({
+    mutationFn: async (channelId: string) => {
+      return await apiRequest(`/api/posts/${postId}/channels/${channelId}`, {
+        method: "DELETE",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/posts", postId, "channels"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/unions", post?.unionId, "posts"] });
+      toast({ title: "Channel untagged!" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to untag channel", variant: "destructive" });
     },
   });
 
@@ -247,6 +297,83 @@ export default function PostDetail() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Channel Tags Management */}
+        {postChannels.length > 0 || isAuthor ? (
+          <Card className="mb-6">
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-muted-foreground">Posted in Channels:</h3>
+                {isAuthor && untaggedChannels.length > 0 && (
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" data-testid="button-add-channel">
+                        <Plus className="h-3 w-3 mr-1" />
+                        Add Channel
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Add to Channels</DialogTitle>
+                      </DialogHeader>
+                      <ScrollArea className="h-[300px]">
+                        <div className="space-y-2">
+                          {untaggedChannels.map((channel: any) => (
+                            <Button
+                              key={channel.id}
+                              variant="outline"
+                              className="w-full justify-start"
+                              onClick={() => tagChannelMutation.mutate(channel.id)}
+                              disabled={tagChannelMutation.isPending}
+                              data-testid={`button-tag-channel-${channel.id}`}
+                            >
+                              {channel.channelType === 'voice' ? <Mic className="h-4 w-4 mr-2" /> :
+                               channel.channelType === 'video' ? <Video className="h-4 w-4 mr-2" /> :
+                               <Hash className="h-4 w-4 mr-2" />}
+                              {channel.name}
+                            </Button>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {postChannels.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Not posted in any channels yet.</p>
+                ) : (
+                  postChannels.map((channel: any) => (
+                    <Badge 
+                      key={channel.id} 
+                      variant="secondary" 
+                      className="text-sm flex items-center gap-1"
+                      data-testid={`channel-tag-${channel.id}`}
+                    >
+                      {channel.channelType === 'voice' ? <Mic className="h-3 w-3" /> :
+                       channel.channelType === 'video' ? <Video className="h-3 w-3" /> :
+                       <Hash className="h-3 w-3" />}
+                      {channel.name}
+                      {isAuthor && (
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            untagChannelMutation.mutate(channel.id);
+                          }}
+                          className="ml-1 hover:bg-destructive/20 rounded-full p-0.5"
+                          disabled={untagChannelMutation.isPending}
+                          data-testid={`button-untag-channel-${channel.id}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </Badge>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
 
         {user && (
           <Card className="mb-6">

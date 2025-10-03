@@ -35,6 +35,8 @@ export default function UnionDetail() {
   const [showChannelList, setShowChannelList] = useState(false);
   const [activeRoom, setActiveRoom] = useState<{ type: 'voice' | 'video', roomUrl: string, sessionId: string } | null>(null);
   const [joiningChannelId, setJoiningChannelId] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<'trending' | 'top' | 'new'>('trending');
+  const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month' | 'year' | 'all'>('all');
 
   const { data: union, isLoading } = useQuery({
     queryKey: ["/api/unions", unionId],
@@ -52,8 +54,26 @@ export default function UnionDetail() {
   });
 
   const { data: posts = [] } = useQuery({
-    queryKey: ["/api/channels", selectedChannel, "posts"],
+    queryKey: selectedChannel === 'all' 
+      ? ["/api/unions", unionId, "posts", sortBy, timeRange, 'all']
+      : ["/api/channels", selectedChannel, "posts"],
     enabled: !!selectedChannel,
+    queryFn: selectedChannel === 'all'
+      ? async () => {
+          const params = new URLSearchParams({
+            sortBy,
+            timeRange,
+            channelId: 'all',
+            limit: '50',
+            offset: '0'
+          });
+          const response = await fetch(`/api/unions/${unionId}/posts?${params}`, {
+            credentials: 'include'
+          });
+          if (!response.ok) throw new Error('Failed to fetch posts');
+          return response.json();
+        }
+      : undefined,
   });
 
   const { data: membership } = useQuery({
@@ -89,6 +109,7 @@ export default function UnionDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/channels", selectedChannel, "posts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/unions", unionId, "posts"] });
       setNewPostTitle("");
       setNewPostContent("");
       setIsPostDialogOpen(false);
@@ -186,6 +207,33 @@ export default function UnionDetail() {
     housing: "hsl(221, 83%, 53%)",
     healthcare: "hsl(262, 83%, 58%)",
   };
+
+  function PostChannelTags({ postId }: { postId: string }) {
+    const { data: postChannels = [] } = useQuery({
+      queryKey: ["/api/posts", postId, "channels"],
+      enabled: selectedChannel === 'all' && !!postId,
+    });
+
+    if (!postChannels.length || selectedChannel !== 'all') return null;
+
+    return (
+      <div className="flex items-center gap-1 flex-wrap">
+        {postChannels.map((channel: any) => (
+          <Badge 
+            key={channel.id} 
+            variant="outline" 
+            className="text-xs"
+            data-testid={`post-channel-badge-${channel.id}`}
+          >
+            {channel.channelType === 'voice' ? <Mic className="h-3 w-3 mr-1" /> : 
+             channel.channelType === 'video' ? <Video className="h-3 w-3 mr-1" /> : 
+             <Hash className="h-3 w-3 mr-1" />}
+            {channel.name}
+          </Badge>
+        ))}
+      </div>
+    );
+  }
 
   function ChannelItem({ channel }: { channel: any }) {
     const { data: session } = useQuery<ChannelSession & { participantCount?: number }>({
@@ -469,6 +517,34 @@ export default function UnionDetail() {
                   <CardContent>
                     <ScrollArea className="h-[500px]">
                       <div className="space-y-1">
+                        {/* All Posts Virtual Channel */}
+                        <div
+                          className={`w-full rounded-md text-sm transition-colors ${
+                            selectedChannel === 'all'
+                              ? "bg-primary text-primary-foreground"
+                              : ""
+                          }`}
+                        >
+                          <button
+                            onClick={() => {
+                              setSelectedChannel('all');
+                              setShowChannelList(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 rounded-md ${
+                              selectedChannel === 'all'
+                                ? ""
+                                : "hover:bg-muted"
+                            }`}
+                            data-testid="channel-all"
+                          >
+                            <div className="flex items-center gap-2">
+                              <MessageSquare className="h-4 w-4 flex-shrink-0" />
+                              <span className="font-semibold">All Posts</span>
+                            </div>
+                          </button>
+                        </div>
+                        
+                        {/* Regular Channels */}
                         {channels.map((channel: any) => (
                           <ChannelItem key={channel.id} channel={channel} />
                         ))}
@@ -487,9 +563,9 @@ export default function UnionDetail() {
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
                       <h2 className="text-2xl font-bold">
-                        {channels.find((c: any) => c.id === selectedChannel)?.name || "Discussion"}
+                        {selectedChannel === 'all' ? 'All Posts' : channels.find((c: any) => c.id === selectedChannel)?.name || "Discussion"}
                       </h2>
-                      {user && (
+                      {user && selectedChannel !== 'all' && (
                         <Dialog open={isPostDialogOpen} onOpenChange={setIsPostDialogOpen}>
                           <DialogTrigger asChild>
                             <Button data-testid="button-create-post">
@@ -533,6 +609,74 @@ export default function UnionDetail() {
                       )}
                     </div>
 
+                    {/* Filter Bar for All Posts */}
+                    {selectedChannel === 'all' && (
+                      <Card>
+                        <CardContent className="pt-6">
+                          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                            {/* Sort By Tabs */}
+                            <div className="flex items-center gap-2 flex-1">
+                              <span className="text-sm font-medium text-muted-foreground">Sort:</span>
+                              <div className="inline-flex rounded-md border">
+                                <button
+                                  onClick={() => setSortBy('trending')}
+                                  className={`px-3 py-1.5 text-sm transition-colors ${
+                                    sortBy === 'trending'
+                                      ? 'bg-primary text-primary-foreground'
+                                      : 'bg-background hover:bg-muted'
+                                  }`}
+                                  data-testid="filter-trending"
+                                >
+                                  Trending
+                                </button>
+                                <button
+                                  onClick={() => setSortBy('top')}
+                                  className={`px-3 py-1.5 text-sm border-l transition-colors ${
+                                    sortBy === 'top'
+                                      ? 'bg-primary text-primary-foreground'
+                                      : 'bg-background hover:bg-muted'
+                                  }`}
+                                  data-testid="filter-top"
+                                >
+                                  Top
+                                </button>
+                                <button
+                                  onClick={() => setSortBy('new')}
+                                  className={`px-3 py-1.5 text-sm border-l transition-colors ${
+                                    sortBy === 'new'
+                                      ? 'bg-primary text-primary-foreground'
+                                      : 'bg-background hover:bg-muted'
+                                  }`}
+                                  data-testid="filter-new"
+                                >
+                                  New
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Time Range Selector (only for trending and top) */}
+                            {(sortBy === 'trending' || sortBy === 'top') && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-muted-foreground">From:</span>
+                                <Select value={timeRange} onValueChange={(value: any) => setTimeRange(value)}>
+                                  <SelectTrigger className="w-[140px]" data-testid="select-time-range">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="today">Today</SelectItem>
+                                    <SelectItem value="week">This Week</SelectItem>
+                                    <SelectItem value="month">This Month</SelectItem>
+                                    <SelectItem value="year">This Year</SelectItem>
+                                    <SelectItem value="all">All Time</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
                     <div className="space-y-4">
                       {posts.map((post: any) => (
                         <Link key={post.id} href={`/posts/${post.id}`}>
@@ -542,15 +686,18 @@ export default function UnionDetail() {
                             </CardHeader>
                             <CardContent>
                               <p className="text-muted-foreground mb-4 whitespace-pre-wrap line-clamp-3">{post.content}</p>
-                              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                                <div className="flex items-center gap-1">
-                                  <ArrowUp className="h-4 w-4" />
-                                  <span>{(post.upvotes || 0) - (post.downvotes || 0)}</span>
+                              <div className="flex flex-col gap-2">
+                                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                                  <div className="flex items-center gap-1">
+                                    <ArrowUp className="h-4 w-4" />
+                                    <span>{(post.upvotes || 0) - (post.downvotes || 0)}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <MessageCircle className="h-4 w-4" />
+                                    <span>{post.commentCount || 0} comments</span>
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-1">
-                                  <MessageCircle className="h-4 w-4" />
-                                  <span>{post.commentCount || 0} comments</span>
-                                </div>
+                                <PostChannelTags postId={post.id} />
                               </div>
                             </CardContent>
                           </Card>
