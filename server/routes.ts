@@ -326,6 +326,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get union posts with advanced filtering (All Posts feature)
+  app.get("/api/unions/:unionId/posts", async (req, res) => {
+    const { sortBy, timeRange, channelId, limit, offset } = req.query;
+    
+    const posts = await storage.getUnionPosts(req.params.unionId, {
+      sortBy: sortBy as 'trending' | 'top' | 'new',
+      timeRange: timeRange as 'today' | 'week' | 'month' | 'year' | 'all',
+      channelId: channelId as string | 'all',
+      limit: limit ? parseInt(limit as string) : 50,
+      offset: offset ? parseInt(offset as string) : 0,
+    });
+    
+    res.json(posts);
+  });
+
+  // Get all channels a post is tagged to
+  app.get("/api/posts/:id/channels", async (req, res) => {
+    const channels = await storage.getPostChannels(req.params.id);
+    res.json(channels);
+  });
+
+  // Tag a post to a channel (multi-channel support)
+  app.post("/api/posts/:id/channels/:channelId", requireAuth, async (req, res) => {
+    try {
+      // Verify user owns the post
+      const post = await storage.getPost(req.params.id);
+      if (!post) {
+        return res.status(404).json({ message: "Post not found" });
+      }
+      if (post.authorId !== req.userId) {
+        return res.status(403).json({ message: "Only the post author can tag posts to channels" });
+      }
+      
+      // Verify channel exists and belongs to same union
+      const channel = await storage.getChannel(req.params.channelId);
+      if (!channel) {
+        return res.status(404).json({ message: "Channel not found" });
+      }
+      if (channel.unionId !== post.unionId) {
+        return res.status(400).json({ message: "Cannot tag post to channel in different union" });
+      }
+      
+      const tag = await storage.tagPostToChannel(req.params.id, req.params.channelId);
+      res.json(tag);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
+  // Untag a post from a channel
+  app.delete("/api/posts/:id/channels/:channelId", requireAuth, async (req, res) => {
+    try {
+      // Verify user owns the post
+      const post = await storage.getPost(req.params.id);
+      if (!post) {
+        return res.status(404).json({ message: "Post not found" });
+      }
+      if (post.authorId !== req.userId) {
+        return res.status(403).json({ message: "Only the post author can untag posts from channels" });
+      }
+      
+      await storage.untagPostFromChannel(req.params.id, req.params.channelId);
+      res.json({ message: "Post untagged from channel" });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  });
+
   // Discussion System - Comments
   app.get("/api/posts/:id/comments", async (req, res) => {
     const comments = await storage.getPostComments(req.params.id);

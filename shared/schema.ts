@@ -165,15 +165,24 @@ export const unionChannels = pgTable("union_channels", {
 export const discussionPosts = pgTable("discussion_posts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   unionId: varchar("union_id").references(() => unions.id).notNull(),
-  channelId: varchar("channel_id").references(() => unionChannels.id).notNull(),
+  channelId: varchar("channel_id").references(() => unionChannels.id), // Nullable - posts can be multi-channel via tags
   authorId: uuid("author_id").notNull(),
   title: text("title").notNull(),
   content: text("content").notNull(),
   upvotes: integer("upvotes").default(0),
   downvotes: integer("downvotes").default(0),
   commentCount: integer("comment_count").default(0),
+  trendingScore: decimal("trending_score", { precision: 10, scale: 2 }).default("0"), // Cached trending calculation
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Post Channel Tags (Many-to-Many: Posts can appear in multiple channels)
+export const postChannelTags = pgTable("post_channel_tags", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postId: varchar("post_id").references(() => discussionPosts.id, { onDelete: 'cascade' }).notNull(),
+  channelId: varchar("channel_id").references(() => unionChannels.id, { onDelete: 'cascade' }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // Post Comments (Nested threading - self-reference handled by SQL)
@@ -240,7 +249,10 @@ export const insertBallotSchema = createInsertSchema(ballots).omit({ id: true, c
 export const insertVoteSchema = createInsertSchema(votes).omit({ id: true, votedAt: true });
 export const insertUserBadgeSchema = createInsertSchema(userBadges).omit({ id: true, earnedAt: true });
 export const insertUnionChannelSchema = createInsertSchema(unionChannels).omit({ id: true, createdAt: true });
-export const insertDiscussionPostSchema = createInsertSchema(discussionPosts).omit({ id: true, createdAt: true, updatedAt: true, upvotes: true, downvotes: true, commentCount: true });
+export const insertDiscussionPostSchema = createInsertSchema(discussionPosts).omit({ id: true, createdAt: true, updatedAt: true, upvotes: true, downvotes: true, commentCount: true, trendingScore: true }).extend({
+  channelTags: z.array(z.string()).optional(), // Array of channel IDs for multi-channel posts
+});
+export const insertPostChannelTagSchema = createInsertSchema(postChannelTags).omit({ id: true, createdAt: true });
 export const insertPostCommentSchema = createInsertSchema(postComments).omit({ id: true, createdAt: true, updatedAt: true, upvotes: true, downvotes: true, depth: true });
 export const insertPostVoteSchema = createInsertSchema(postVotes).omit({ id: true, createdAt: true });
 export const insertChannelSessionSchema = createInsertSchema(channelSessions).omit({ id: true, startedAt: true, isActive: true });
@@ -275,6 +287,8 @@ export type UnionChannel = typeof unionChannels.$inferSelect;
 export type InsertUnionChannel = z.infer<typeof insertUnionChannelSchema>;
 export type DiscussionPost = typeof discussionPosts.$inferSelect;
 export type InsertDiscussionPost = z.infer<typeof insertDiscussionPostSchema>;
+export type PostChannelTag = typeof postChannelTags.$inferSelect;
+export type InsertPostChannelTag = z.infer<typeof insertPostChannelTagSchema>;
 export type PostComment = typeof postComments.$inferSelect;
 export type InsertPostComment = z.infer<typeof insertPostCommentSchema>;
 export type PostVote = typeof postVotes.$inferSelect;

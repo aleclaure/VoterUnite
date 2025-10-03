@@ -13,6 +13,7 @@ import {
   type UserBadge, type InsertUserBadge,
   type UnionChannel, type InsertUnionChannel,
   type DiscussionPost, type InsertDiscussionPost,
+  type PostChannelTag, type InsertPostChannelTag,
   type PostComment, type InsertPostComment,
   type PostVote, type InsertPostVote,
   type ChannelSession, type InsertChannelSession,
@@ -92,10 +93,23 @@ export interface IStorage {
   
   // Posts
   getChannelPosts(channelId: string): Promise<DiscussionPost[]>;
+  getUnionPosts(unionId: string, options: {
+    sortBy?: 'trending' | 'top' | 'new';
+    timeRange?: 'today' | 'week' | 'month' | 'year' | 'all';
+    channelId?: string | 'all';
+    limit?: number;
+    offset?: number;
+  }): Promise<DiscussionPost[]>;
   getPost(id: string): Promise<DiscussionPost | undefined>;
   createPost(post: InsertDiscussionPost): Promise<DiscussionPost>;
   updatePost(id: string, updates: Partial<InsertDiscussionPost>): Promise<DiscussionPost>;
   deletePost(id: string): Promise<void>;
+  
+  // Post Channel Tags (Multi-channel support)
+  getPostChannels(postId: string): Promise<UnionChannel[]>;
+  tagPostToChannel(postId: string, channelId: string): Promise<PostChannelTag>;
+  untagPostFromChannel(postId: string, channelId: string): Promise<void>;
+  updateTrendingScores(unionId: string): Promise<void>;
   
   // Comments
   getPostComments(postId: string): Promise<PostComment[]>;
@@ -495,12 +509,14 @@ export class MemStorage implements IStorage {
   }
 
   async createPost(insertPost: InsertDiscussionPost): Promise<DiscussionPost> {
+    const { channelTags, ...postData } = insertPost;
     const post: DiscussionPost = { 
-      ...insertPost, 
+      ...postData, 
       id: randomUUID(), 
       upvotes: 0,
       downvotes: 0,
       commentCount: 0,
+      trendingScore: "0",
       createdAt: new Date(),
       updatedAt: new Date()
     };
@@ -518,6 +534,47 @@ export class MemStorage implements IStorage {
 
   async deletePost(id: string): Promise<void> {
     this.discussionPosts.delete(id);
+  }
+
+  async getUnionPosts(unionId: string, options: {
+    sortBy?: 'trending' | 'top' | 'new';
+    timeRange?: 'today' | 'week' | 'month' | 'year' | 'all';
+    channelId?: string | 'all';
+    limit?: number;
+    offset?: number;
+  }): Promise<DiscussionPost[]> {
+    // Stub implementation for MemStorage
+    let posts = Array.from(this.discussionPosts.values())
+      .filter(p => p.unionId === unionId);
+    
+    // Sort by creation date (simplified)
+    posts.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    
+    return posts.slice(options.offset || 0, (options.offset || 0) + (options.limit || 50));
+  }
+
+  async getPostChannels(postId: string): Promise<UnionChannel[]> {
+    // Stub implementation - returns empty array
+    return [];
+  }
+
+  async tagPostToChannel(postId: string, channelId: string): Promise<PostChannelTag> {
+    // Stub implementation
+    const tag: PostChannelTag = {
+      id: randomUUID(),
+      postId,
+      channelId,
+      createdAt: new Date()
+    };
+    return tag;
+  }
+
+  async untagPostFromChannel(postId: string, channelId: string): Promise<void> {
+    // Stub implementation
+  }
+
+  async updateTrendingScores(unionId: string): Promise<void> {
+    // Stub implementation
   }
 
   // Discussion System - Comments
@@ -1020,8 +1077,28 @@ export class DbStorage implements IStorage {
   }
 
   async createPost(post: InsertDiscussionPost): Promise<DiscussionPost> {
-    const result = await db.insert(schema.discussionPosts).values(post).returning();
-    return result[0];
+    const { channelTags, ...postData } = post;
+    const result = await db.insert(schema.discussionPosts).values(postData).returning();
+    const createdPost = result[0];
+    
+    // Handle multi-channel tagging
+    if (channelTags && channelTags.length > 0) {
+      // Tag the post to all specified channels
+      await Promise.all(
+        channelTags.map((channelId: string) => 
+          db.insert(schema.postChannelTags)
+            .values({ postId: createdPost.id, channelId })
+            .onConflictDoNothing()
+        )
+      );
+    } else if (postData.channelId) {
+      // If no channelTags specified but channelId exists, create a tag for that channel
+      await db.insert(schema.postChannelTags)
+        .values({ postId: createdPost.id, channelId: postData.channelId })
+        .onConflictDoNothing();
+    }
+    
+    return createdPost;
   }
 
   async updatePost(id: string, updates: Partial<InsertDiscussionPost>): Promise<DiscussionPost> {
@@ -1035,6 +1112,120 @@ export class DbStorage implements IStorage {
 
   async deletePost(id: string): Promise<void> {
     await db.delete(schema.discussionPosts).where(eq(schema.discussionPosts.id, id));
+  }
+
+  async getUnionPosts(unionId: string, options: {
+    sortBy?: 'trending' | 'top' | 'new';
+    timeRange?: 'today' | 'week' | 'month' | 'year' | 'all';
+    channelId?: string | 'all';
+    limit?: number;
+    offset?: number;
+  }): Promise<DiscussionPost[]> {
+    const { sortBy = 'new', timeRange = 'all', channelId, limit = 50, offset = 0 } = options;
+    
+    let query = db.select().from(schema.discussionPosts)
+      .where(eq(schema.discussionPosts.unionId, unionId));
+
+    // Apply channel filter
+    if (channelId && channelId !== 'all') {
+      // Get posts that are tagged to this specific channel
+      const taggedPostIds = await db.select({ postId: schema.postChannelTags.postId })
+        .from(schema.postChannelTags)
+        .where(eq(schema.postChannelTags.channelId, channelId));
+      
+      const postIds = taggedPostIds.map((t: { postId: string }) => t.postId);
+      if (postIds.length > 0) {
+        query = query.where(sql`${schema.discussionPosts.id} IN ${postIds}`);
+      } else {
+        return []; // No posts in this channel
+      }
+    }
+
+    // Apply time range filter
+    if (timeRange !== 'all' && (sortBy === 'trending' || sortBy === 'top')) {
+      const now = new Date();
+      let cutoffDate: Date;
+      
+      switch (timeRange) {
+        case 'today':
+          cutoffDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+          break;
+        case 'week':
+          cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case 'month':
+          cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        case 'year':
+          cutoffDate = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          cutoffDate = new Date(0);
+      }
+      
+      query = query.where(sql`${schema.discussionPosts.createdAt} >= ${cutoffDate}`);
+    }
+
+    // Apply sorting
+    switch (sortBy) {
+      case 'trending':
+        query = query.orderBy(desc(schema.discussionPosts.trendingScore));
+        break;
+      case 'top':
+        query = query.orderBy(
+          desc(sql`${schema.discussionPosts.upvotes} - ${schema.discussionPosts.downvotes}`)
+        );
+        break;
+      case 'new':
+      default:
+        query = query.orderBy(desc(schema.discussionPosts.createdAt));
+        break;
+    }
+
+    // Apply pagination
+    query = query.limit(limit).offset(offset);
+
+    return await query;
+  }
+
+  async getPostChannels(postId: string): Promise<UnionChannel[]> {
+    const result = await db.select({
+      id: schema.unionChannels.id,
+      unionId: schema.unionChannels.unionId,
+      name: schema.unionChannels.name,
+      description: schema.unionChannels.description,
+      channelType: schema.unionChannels.channelType,
+      createdBy: schema.unionChannels.createdBy,
+      createdAt: schema.unionChannels.createdAt,
+    })
+    .from(schema.postChannelTags)
+    .innerJoin(
+      schema.unionChannels,
+      eq(schema.postChannelTags.channelId, schema.unionChannels.id)
+    )
+    .where(eq(schema.postChannelTags.postId, postId));
+
+    return result;
+  }
+
+  async tagPostToChannel(postId: string, channelId: string): Promise<PostChannelTag> {
+    const result = await db.insert(schema.postChannelTags)
+      .values({ postId, channelId })
+      .returning();
+    return result[0];
+  }
+
+  async untagPostFromChannel(postId: string, channelId: string): Promise<void> {
+    await db.delete(schema.postChannelTags)
+      .where(and(
+        eq(schema.postChannelTags.postId, postId),
+        eq(schema.postChannelTags.channelId, channelId)
+      ));
+  }
+
+  async updateTrendingScores(unionId: string): Promise<void> {
+    // Call the SQL function to update trending scores for all posts in a union
+    await db.execute(sql`SELECT update_trending_scores(${unionId})`);
   }
 
   // Discussion System - Comments
